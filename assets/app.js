@@ -724,7 +724,7 @@ function drawMarkers() {
     el.className = 'mt-marker';
     el.innerHTML =
       `<div class="mt-pin" style="background:${k.color}"><span>${entryIcon(e)}</span></div>` +
-      `<div class="mt-label">${e.start ? escapeAttr(e.start) + ' ' : ''}${escapeAttr(e.place)}</div>`;
+      `<div class="mt-label">${e.start ? `<b>${escapeAttr(e.start)}</b> ` : ''}<span>${escapeAttr(e.place)}</span></div>`;
 
     const popup = new maptilersdk.Popup({ offset: 28, closeButton: false }).setHTML(
       `<b>${entryIcon(e)} ${escapeAttr(e.place)}</b><br/>` +
