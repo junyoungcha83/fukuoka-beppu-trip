@@ -29,6 +29,10 @@ const KINDS = [
 const KIND_MAP = Object.fromEntries(KINDS.map(k => [k.id, k]));
 function kindOf(id) { return KIND_MAP[id] || KINDS[0]; }
 
+// 경로(스네이크) 일자별 색 — 위(Day1, 연함) → 아래(Day5, 진함)
+const DAY_COLORS = ['#e6b8a2', '#df9b86', '#d57c80', '#c45f74', '#9c2f63'];
+function dayColor(ci) { return DAY_COLORS[Math.min(Math.max(ci, 0), DAY_COLORS.length - 1)]; }
+
 function DEFAULT_STATE() { return { version: 1, entries: [] }; }
 
 let state = DEFAULT_STATE();
@@ -658,49 +662,94 @@ function drawMarkers() {
   else if (bounds) _map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 0 });
 }
 
-// ── 경로 탭 (일자별 타임라인) ────────────────────
+// ── 경로 탭 (스네이크 일정표) ────────────────────
+// DAY 배지·정류장을 좌→우, 우→좌 로 꺾어가며 U턴으로 잇는 뱀 모양 타임라인.
 function renderRoute() {
   const wrap = document.getElementById('routeWrap');
   wrap.innerHTML = '';
   const days = (activeDay === 'all' ? populatedDays() : DAYS.filter(d => d.id === activeDay));
-  if (days.length === 0) {
-    wrap.innerHTML = `<div class="grid-empty">아직 일정이 없습니다.<br/><small>상세 탭에서 추가하세요.</small></div>`;
-    return;
-  }
+
+  // 노드 시퀀스: [DAY 배지, 정류장…] 을 일자 순서로 평탄화
+  const nodes = [];
   for (const day of days) {
     const items = state.entries
       .filter(e => e.day === day.id && e.place && e.place.trim())
       .slice()
       .sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99'));
-    if (items.length === 0) continue;
+    if (!items.length) continue;
+    const ci = DAYS.findIndex(d => d.id === day.id);
+    nodes.push({ type: 'day', ci, label: 'DAY ' + (ci + 1) });
+    for (const e of items) nodes.push({ type: 'stop', ci, e });
+  }
+  if (!nodes.length) {
+    wrap.innerHTML = `<div class="grid-empty">아직 일정이 없습니다.<br/><small>상세 탭에서 추가하세요.</small></div>`;
+    return;
+  }
 
-    const sec = document.createElement('section');
-    sec.className = 'route-day';
-    sec.innerHTML = `<h2 class="route-day-title">${day.label}</h2>`;
-    const tl = document.createElement('div');
-    tl.className = 'timeline';
-    for (const e of items) {
-      const k = kindOf(e.kind);
-      const node = document.createElement('div');
-      node.className = 'tl-node';
-      node.innerHTML = `
-        <div class="tl-dot" style="background:${k.color}">${k.icon}</div>
-        <div class="tl-body">
-          <div class="tl-head">
-            ${e.start ? `<span class="tl-time">${escapeAttr(e.start)}${e.end ? '~' + escapeAttr(e.end) : ''}</span>` : ''}
-            <span class="tl-place">${escapeAttr(e.place)}</span>
-            <span class="tl-kind">${k.label}</span>
-          </div>
-          ${e.memo ? `<div class="tl-memo">${escapeAttr(e.memo)}</div>` : ''}
-        </div>`;
-      tl.appendChild(node);
+  // 레이아웃 계산
+  const W = Math.max(280, wrap.clientWidth || 340);
+  const PAD = 6, ROW_H = 132, R = ROW_H / 2, ICON_TOP = 54, LABEL_BOT = 64;
+  const Lx = PAD + R, Rx = W - PAD - R;                 // 라인 좌/우 끝(곡선 반경만큼 안쪽)
+  const cols = Math.max(2, Math.min(4, Math.floor((Rx - Lx) / 96) + 1));
+  const step = cols > 1 ? (Rx - Lx) / (cols - 1) : 0;
+  const n = nodes.length, rows = Math.ceil(n / cols);
+  const lastCount = n - (rows - 1) * cols;
+  const lineY = r => ICON_TOP + r * ROW_H;
+  const totalH = ICON_TOP + (rows - 1) * ROW_H + LABEL_BOT;
+
+  // 노드 좌표 (짝수행 좌→우, 홀수행 우→좌)
+  const pos = nodes.map((_, i) => {
+    const r = Math.floor(i / cols), j = i - r * cols, even = r % 2 === 0;
+    return { x: even ? (Lx + j * step) : (Rx - j * step), y: lineY(r) };
+  });
+
+  // 스네이크 경로(직선 + 양끝 U턴 arc)
+  let d = '';
+  for (let r = 0; r < rows; r++) {
+    const even = r % 2 === 0, isLast = r === rows - 1;
+    const cnt = isLast ? lastCount : cols;
+    const startX = even ? Lx : Rx;
+    const endX = even ? (Lx + (cnt - 1) * step) : (Rx - (cnt - 1) * step);
+    const Y = lineY(r);
+    if (r === 0) d += `M ${startX} ${Y} `;
+    d += `L ${endX} ${Y} `;
+    if (!isLast) {
+      const nY = lineY(r + 1);
+      d += even ? `A ${R} ${R} 0 0 1 ${Rx} ${nY} ` : `A ${R} ${R} 0 0 0 ${Lx} ${nY} `;
     }
-    sec.appendChild(tl);
-    wrap.appendChild(sec);
   }
-  if (!wrap.children.length) {
-    wrap.innerHTML = `<div class="grid-empty">표시할 일정이 없습니다.</div>`;
-  }
+
+  const svg = `<svg width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}">
+    <defs><linearGradient id="snG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${DAY_COLORS[0]}"/>
+      <stop offset="100%" stop-color="${DAY_COLORS[DAY_COLORS.length - 1]}"/>
+    </linearGradient></defs>
+    <path d="${d}" fill="none" stroke="url(#snG)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+
+  let html = svg;
+  nodes.forEach((nd, i) => {
+    const p = pos[i], c = dayColor(nd.ci);
+    if (nd.type === 'day') {
+      html += `<div class="sn-badge" style="left:${p.x}px;top:${p.y}px;--c:${c}">${escapeAttr(nd.label)}</div>`;
+    } else {
+      const k = kindOf(nd.e.kind);
+      html += `<div class="sn-node" style="left:${p.x}px;top:${p.y}px;--c:${c}">` +
+        `<div class="sn-icon"><span>${k.icon}</span></div>` +
+        `<div class="sn-dot"></div>` +
+        `<div class="sn-label"><b>${escapeAttr(nd.e.place)}</b>` +
+          (nd.e.start ? `<span class="sn-time">${escapeAttr(nd.e.start)}</span>` : '') +
+          (nd.e.memo ? `<small>${escapeAttr(nd.e.memo)}</small>` : '') +
+        `</div></div>`;
+    }
+  });
+
+  const snake = document.createElement('div');
+  snake.className = 'snake';
+  snake.style.width = W + 'px';
+  snake.style.height = totalH + 'px';
+  snake.innerHTML = html;
+  wrap.appendChild(snake);
 }
 
 // ── 부트 ─────────────────────────────────────────
@@ -710,6 +759,16 @@ async function bootstrap() {
   });
   document.getElementById('btnEdit').onclick = promptEditToken;
   document.getElementById('btnSave').onclick = manualSave;
+
+  // 화면 크기 변경 시 스네이크 경로 재배치 / 지도 크기 갱신
+  let _rzTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(_rzTimer);
+    _rzTimer = setTimeout(() => {
+      if (activeTab === 'route') renderRoute();
+      else if (activeTab === 'map' && _map) _map.resize();
+    }, 200);
+  });
 
   state = await loadInitial();
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}

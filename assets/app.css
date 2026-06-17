@@ -281,55 +281,52 @@ body.read-only .fab-save { display: none; }
   box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
 
-/* ── 경로 탭 (타임라인) ── */
-.route-wrap { padding-bottom: 10px; }
-.route-day { margin-bottom: 22px; }
-.route-day-title {
-  margin: 0 0 12px; font-size: 1.05rem; font-weight: 700;
-  color: var(--primary-dark);
+/* ── 경로 탭 (스네이크 일정표) ── */
+.route-wrap { padding: 4px 0 24px; overflow-x: hidden; }
+.snake { position: relative; margin: 0 auto; }
+.snake svg { position: absolute; inset: 0; }
+
+/* 라인 위 점 + 위 아이콘 + 아래 라벨 (0크기 앵커에 절대배치) */
+.sn-node { position: absolute; width: 0; height: 0; }
+.sn-dot {
+  position: absolute; left: 0; top: 0;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 3px var(--c, #d57c80); z-index: 2;
 }
-.timeline { position: relative; padding-left: 6px; }
-.tl-node {
-  position: relative;
-  display: flex; gap: 12px;
-  padding-bottom: 16px;
-}
-/* 점들을 잇는 실선 */
-.tl-node::before {
-  content: '';
-  position: absolute;
-  left: 17px; top: 36px; bottom: -2px;
-  width: 2px; background: var(--primary);
-}
-.tl-node:last-child::before { display: none; }
-.tl-dot {
-  flex: 0 0 36px;
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+.sn-icon {
+  position: absolute; left: 0; bottom: 16px;
+  transform: translateX(-50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--c);
   display: flex; align-items: center; justify-content: center;
-  font-size: 17px; z-index: 1;
+  font-size: 21px; line-height: 1;
+  box-shadow: 0 2px 5px rgba(0,0,0,.12);
 }
-.tl-body {
-  flex: 1 1 auto;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 8px 12px;
+.sn-label {
+  position: absolute; left: 0; top: 16px;
+  transform: translateX(-50%);
+  width: 92px; text-align: center; line-height: 1.18;
 }
-.tl-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
-.tl-time {
-  font-size: .82rem; font-weight: 700; color: var(--primary-dark);
+.sn-label b {
+  display: block; font-size: .8rem; font-weight: 700; color: var(--text);
+  word-break: keep-all;
+}
+.sn-label .sn-time {
+  display: block; font-size: .66rem; font-weight: 700; color: var(--c);
   font-variant-numeric: tabular-nums;
 }
-.tl-place { font-size: .95rem; font-weight: 700; }
-.tl-kind {
-  font-size: .68rem; color: var(--muted);
-  background: var(--bg); border-radius: 999px;
-  padding: 1px 8px;
+.sn-label small { display: block; font-size: .66rem; color: var(--muted); word-break: keep-all; }
+
+/* DAY 배지 — 라인 위에 얹힌 알약 */
+.sn-badge {
+  position: absolute; left: 0; top: 0;
+  transform: translate(-50%, -50%);
+  background: var(--c); color: #fff;
+  font-weight: 800; font-size: .72rem; letter-spacing: .03em;
+  padding: 5px 13px; border-radius: 999px; white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(0,0,0,.2); z-index: 3;
 }
-.tl-memo { margin-top: 3px; font-size: .82rem; color: #4b5563; }
 
 /* ── 읽기 전용 모드 ── */
 body.read-only .btn-add,
