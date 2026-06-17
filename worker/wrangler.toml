@@ -1,0 +1,12 @@
+name = "fukuoka-beppu-trip-api"
+main = "src/index.js"
+compatibility_date = "2025-05-01"
+
+# KV namespace — 다음 명령으로 생성한 뒤 id 를 채우세요:
+#   npx wrangler kv namespace create TRIP
+[[kv_namespaces]]
+binding = "TRIP"
+id = "0d212688f4704eff8fde0ab4eb19644b"
+
+# 편집 비밀번호는 secret 으로:
+#   npx wrangler secret put EDIT_TOKEN

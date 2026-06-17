@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "entries": [
+    { "id": "e1", "day": "d1", "kind": "airport",  "place": "후쿠오카공항 도착",        "start": "10:00", "end": "11:00", "memo": "지하철로 하카타역 이동",        "lat": 33.5946, "lng": 130.4510 },
+    { "id": "e2", "day": "d1", "kind": "food",     "place": "이치란 라멘 본점",          "start": "12:00", "end": "13:00", "memo": "나카스",                       "lat": 33.5912, "lng": 130.4055 },
+    { "id": "e3", "day": "d1", "kind": "shopping", "place": "캐널시티 하카타",            "start": "14:00", "end": "16:30", "memo": "분수쇼",                       "lat": 33.5897, "lng": 130.4112 },
+    { "id": "e4", "day": "d1", "kind": "hotel",    "place": "하카타역 호텔 체크인",        "start": "18:00", "end": "",      "memo": "",                             "lat": 33.5897, "lng": 130.4207 },
+
+    { "id": "e5", "day": "d2", "kind": "sight",    "place": "벳푸 지옥순례(우미지고쿠)",   "start": "09:30", "end": "12:00", "memo": "버스 이동",                    "lat": 33.3252, "lng": 131.4816 },
+    { "id": "e6", "day": "d2", "kind": "food",     "place": "토요츠네 (붕장어덮밥)",       "start": "13:00", "end": "14:00", "memo": "벳푸역 인근",                  "lat": 33.2796, "lng": 131.5005 },
+    { "id": "e7", "day": "d2", "kind": "sight",    "place": "다카사키야마 원숭이공원",     "start": "15:00", "end": "16:30", "memo": "",                             "lat": 33.2519, "lng": 131.5036 },
+    { "id": "e8", "day": "d2", "kind": "hotel",    "place": "벳푸 온천 료칸",             "start": "18:00", "end": "",      "memo": "칸나와 온천",                  "lat": 33.3247, "lng": 131.4880 },
+
+    { "id": "e9",  "day": "d3", "kind": "sight",    "place": "다자이후 텐만구",            "start": "10:00", "end": "12:00", "memo": "후쿠오카 복귀 후",             "lat": 33.5215, "lng": 130.5350 },
+    { "id": "e10", "day": "d3", "kind": "shopping", "place": "텐진 지하상가",              "start": "13:00", "end": "15:30", "memo": "기념품",                       "lat": 33.5914, "lng": 130.3998 },
+    { "id": "e11", "day": "d3", "kind": "airport",  "place": "후쿠오카공항 출발",          "start": "17:00", "end": "",      "memo": "",                             "lat": 33.5946, "lng": 130.4510 }
+  ]
+}

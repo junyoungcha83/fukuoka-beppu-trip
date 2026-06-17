@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>후쿠오카·벳푸 여행</title>
+<link rel="stylesheet" href="assets/app.css" />
+
+<!-- MapTiler SDK (지도 탭, 한국어 라벨) — CDN -->
+<link rel="stylesheet" href="https://cdn.maptiler.com/maptiler-sdk-js/v3.6.0/maptiler-sdk.css" />
+<script defer src="https://cdn.maptiler.com/maptiler-sdk-js/v3.6.0/maptiler-sdk.umd.min.js"></script>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0ea5e9" />
+<link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
+
+<!-- iOS Safari 홈 화면 추가 -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="후쿠오카·벳푸" />
+<link rel="apple-touch-icon" href="assets/icon.svg" />
+</head>
+<body>
+
+<header class="app-header">
+  <h1>후쿠오카 · 벳푸 여행</h1>
+  <div class="header-right">
+    <span class="sync-status" id="syncStatus"></span>
+    <button class="icon-btn" id="btnEdit" title="편집 잠금/해제" aria-label="편집">🔒</button>
+  </div>
+</header>
+
+<nav class="top-tabs" role="tablist" aria-label="상위 탭">
+  <button class="top-tab active" role="tab" data-tab="grid"   aria-selected="true">시간표</button>
+  <button class="top-tab"        role="tab" data-tab="map"    aria-selected="false">지도</button>
+  <button class="top-tab"        role="tab" data-tab="route"  aria-selected="false">경로</button>
+  <button class="top-tab"        role="tab" data-tab="detail" aria-selected="false">상세</button>
+</nav>
+
+<nav class="mini-tabs" id="miniTabs" role="tablist" aria-label="일자 선택">
+  <!-- JS 가 일자(전체/Day n) 채움 — 지도·경로 탭에서만 노출 -->
+</nav>
+
+<main class="app-main">
+  <!-- 시간표 탭 -->
+  <section class="tab-panel" id="tabGrid" data-tab="grid">
+    <div class="grid-wrap" id="gridWrap"></div>
+  </section>
+
+  <!-- 지도 탭 -->
+  <section class="tab-panel hidden" id="tabMap" data-tab="map">
+    <div id="map" class="map-box"></div>
+    <div class="map-legend" id="mapLegend"></div>
+  </section>
+
+  <!-- 경로 탭 -->
+  <section class="tab-panel hidden" id="tabRoute" data-tab="route">
+    <div class="route-wrap" id="routeWrap"></div>
+  </section>
+
+  <!-- 상세(입력) 탭 -->
+  <section class="tab-panel hidden" id="tabDetail" data-tab="detail">
+    <div class="detail-list" id="detailList"></div>
+    <button class="fab-save" id="btnSave" type="button">저장</button>
+  </section>
+</main>
+
+<script src="assets/app.js"></script>
+<script>
+  // service worker 등록 (file:// 에서는 동작 안 함 — http(s) 에서만)
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
