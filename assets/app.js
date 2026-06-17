@@ -33,6 +33,26 @@ function kindOf(id) { return KIND_MAP[id] || KINDS[0]; }
 const DAY_COLORS = ['#e6b8a2', '#df9b86', '#d57c80', '#c45f74', '#9c2f63'];
 function dayColor(ci) { return DAY_COLORS[Math.min(Math.max(ci, 0), DAY_COLORS.length - 1)]; }
 
+// 커스텀 아이콘 선택 세트 (항목별 e.icon 으로 저장; 미지정 시 종류 기본)
+const ICON_SET = [
+  // 이동
+  '✈️','🛫','🛬','🚄','🚅','🚆','🚇','🚌','🚕','🚗','🚙','🚢','⛴️','⛵','🚲','🛵','🚠','🚡',
+  // 숙소
+  '🏨','🏩','🏠','🏡','⛺','🛌','🔑',
+  // 명소/관광
+  '🗼','🗽','🏯','🏰','⛩️','🕌','⛲','🎡','🎢','🎠','🎆','🎇','🏟️','🎭','🖼️','🎨','📷','🗺️','📍','⛳','♨️','🧖',
+  // 자연
+  '🏖️','🏝️','🌊','⛱️','🗻','🏔️','⛰️','🌋','🏞️','🌅','🌉','🌸','🍁','🌴',
+  // 동물
+  '🦌','🐒','🐬','🐠','🦀','🕊️',
+  // 음식/카페
+  '🍜','🍣','🍱','🍙','🍢','🍡','🍤','🍲','🍛','🥘','🍖','🍗','🥩','🍕','🍔','🥟','🍶','🍺','🍻','☕','🍵','🧋','🍰','🧁','🍦','🍧','🍩','🍓',
+  // 쇼핑/기타
+  '🛍️','👜','👠','👟','👕','🧢','🛒','💄','🎁','💴','🏧','🎫',
+];
+// 항목의 실제 표시 아이콘 — 커스텀 우선, 없으면 종류 기본
+function entryIcon(e) { return (e && e.icon && e.icon.trim()) ? e.icon : kindOf(e ? e.kind : '').icon; }
+
 function DEFAULT_STATE() { return { version: 1, entries: [] }; }
 
 let state = DEFAULT_STATE();
@@ -186,6 +206,7 @@ function migrate(loaded) {
   for (const e of loaded.entries) {
     e.day   = DAYS.some(d => d.id === e.day) ? e.day : 'd1';
     e.kind  = KINDS.some(k => k.id === e.kind) ? e.kind : 'sight';
+    e.icon  = typeof e.icon === 'string' ? e.icon : '';
     e.place = typeof e.place === 'string' ? e.place : '';
     e.start = typeof e.start === 'string' ? e.start : '';
     e.end   = typeof e.end   === 'string' ? e.end   : '';
@@ -377,6 +398,7 @@ function makeRowCard(entry, dayId) {
   card.innerHTML = `
     <button class="row-delete" title="삭제" aria-label="삭제">×</button>
     <div class="row-row">
+      <button type="button" class="f-icon" title="아이콘 선택" aria-label="아이콘 선택">${entryIcon(e)}</button>
       <select class="f-kind" aria-label="구분">
         ${KINDS.map(k => `<option value="${k.id}"${k.id === e.kind ? ' selected' : ''}>${k.icon} ${k.label}</option>`).join('')}
       </select>
@@ -403,12 +425,17 @@ function makeRowCard(entry, dayId) {
       if (!target) return;
       target[f] = sel.value;
       target.updated_at = nowIso();
-      if (f === 'kind') card.style.borderLeftColor = kindOf(sel.value).color;
+      if (f === 'kind') {
+        card.style.borderLeftColor = kindOf(sel.value).color;
+        if (!target.icon) card.querySelector('.f-icon').textContent = kindOf(sel.value).icon;
+      }
       saveLocal();
     };
     sel.addEventListener('input', handler);
     if (sel.tagName === 'SELECT') sel.addEventListener('change', handler);
   });
+
+  card.querySelector('.f-icon').onclick = () => openIconPicker(card, dayId);
 
   ['lat', 'lng'].forEach(f => {
     const inp = card.querySelector('.f-' + f);
@@ -434,6 +461,45 @@ function makeRowCard(entry, dayId) {
   };
 
   return card;
+}
+
+// ── 아이콘 선택 팝업 ───────────────────────────
+let _pickerEl = null;
+let _pickerTarget = null;
+function ensurePickerEl() {
+  if (_pickerEl) return;
+  _pickerEl = document.createElement('div');
+  _pickerEl.className = 'icon-picker hidden';
+  _pickerEl.innerHTML = `<div class="ip-panel">
+    <div class="ip-head"><span>아이콘 선택</span><button class="ip-close" aria-label="닫기">×</button></div>
+    <div class="ip-grid">
+      <button class="ip-cell ip-reset" data-icon="">기본</button>
+      ${ICON_SET.map(ic => `<button class="ip-cell" data-icon="${ic}">${ic}</button>`).join('')}
+    </div></div>`;
+  document.body.appendChild(_pickerEl);
+  _pickerEl.addEventListener('click', e => {
+    if (e.target === _pickerEl || e.target.classList.contains('ip-close')) {
+      _pickerEl.classList.add('hidden'); return;
+    }
+    const cell = e.target.closest('.ip-cell');
+    if (!cell || !_pickerTarget) return;
+    const target = findEntry(_pickerTarget.id);
+    if (target) {
+      target.icon = cell.dataset.icon || '';
+      target.updated_at = nowIso();
+      const btn = _pickerTarget.card.querySelector('.f-icon');
+      if (btn) btn.textContent = entryIcon(target);
+      saveLocal();
+    }
+    _pickerEl.classList.add('hidden');
+  });
+}
+function openIconPicker(card, dayId) {
+  if (!getEditToken()) { alert('편집 모드에서만 변경할 수 있습니다.'); return; }
+  ensureEntry(card, dayId);
+  ensurePickerEl();
+  _pickerTarget = { card, id: card.dataset.id };
+  _pickerEl.classList.remove('hidden');
 }
 
 // 장소명 → 좌표 (OpenStreetMap Nominatim, best-effort)
@@ -566,7 +632,7 @@ function renderGrid() {
     div.style.background = k.color;
     div.innerHTML =
       `<span class="tt-time-range">${escapeAttr(e.start)}${e.end ? '~' + escapeAttr(e.end) : ''}</span>` +
-      `<strong>${k.icon} ${escapeAttr(e.place)}</strong>` +
+      `<strong>${entryIcon(e)} ${escapeAttr(e.place)}</strong>` +
       (e.memo ? `<small>${escapeAttr(e.memo)}</small>` : '');
     tt.appendChild(div);
   }
@@ -616,7 +682,23 @@ function renderMap() {
     };
     if (maptilersdk.MapStyle && maptilersdk.MapStyle.STREETS) opts.style = maptilersdk.MapStyle.STREETS;
     _map = new maptilersdk.Map(opts);
-    _map.on('load', () => { _mapReady = true; drawMarkers(); });
+    window._tripMap = _map;   // 디버그/확장용
+    _map.on('load', () => {
+      _mapReady = true;
+      // 시간순 경로선 (일자 색상, 반투명 실선) — 흰 케이싱 위에 컬러 선
+      _map.addSource('trip-lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      _map.addLayer({
+        id: 'trip-lines-casing', type: 'line', source: 'trip-lines',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.7 },
+      });
+      _map.addLayer({
+        id: 'trip-lines', type: 'line', source: 'trip-lines',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': 5, 'line-opacity': 0.85 },
+      });
+      drawMarkers();
+    });
   } else {
     // 패널이 다시 표시된 직후 — 크기 재계산
     setTimeout(() => _map.resize(), 50);
@@ -641,11 +723,11 @@ function drawMarkers() {
     const el = document.createElement('div');
     el.className = 'mt-marker';
     el.innerHTML =
-      `<div class="mt-pin" style="background:${k.color}"><span>${k.icon}</span></div>` +
+      `<div class="mt-pin" style="background:${k.color}"><span>${entryIcon(e)}</span></div>` +
       `<div class="mt-label">${e.start ? escapeAttr(e.start) + ' ' : ''}${escapeAttr(e.place)}</div>`;
 
     const popup = new maptilersdk.Popup({ offset: 28, closeButton: false }).setHTML(
-      `<b>${k.icon} ${escapeAttr(e.place)}</b><br/>` +
+      `<b>${entryIcon(e)} ${escapeAttr(e.place)}</b><br/>` +
       `${dLabel}${e.start ? ' · ' + escapeAttr(e.start) : ''}${e.end ? '~' + escapeAttr(e.end) : ''}` +
       (e.memo ? `<br/>${escapeAttr(e.memo)}` : '')
     );
@@ -658,6 +740,27 @@ function drawMarkers() {
     if (!bounds) bounds = new maptilersdk.LngLatBounds([e.lng, e.lat], [e.lng, e.lat]);
     else bounds.extend([e.lng, e.lat]);
   }
+
+  // 일자별 시간순 경로선 (좌표 있는 항목 2개 이상)
+  const lineDays = activeDay === 'all' ? DAYS : DAYS.filter(d => d.id === activeDay);
+  const feats = [];
+  for (const day of lineDays) {
+    const ci = DAYS.findIndex(d => d.id === day.id);
+    const dayPts = state.entries
+      .filter(e => e.day === day.id && typeof e.lat === 'number' && typeof e.lng === 'number')
+      .slice()
+      .sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99'));
+    if (dayPts.length >= 2) {
+      feats.push({
+        type: 'Feature',
+        properties: { color: dayColor(ci) },
+        geometry: { type: 'LineString', coordinates: dayPts.map(e => [e.lng, e.lat]) },
+      });
+    }
+  }
+  const src = _map.getSource('trip-lines');
+  if (src) src.setData({ type: 'FeatureCollection', features: feats });
+
   if (pts.length === 1) _map.flyTo({ center: [pts[0].lng, pts[0].lat], zoom: 13 });
   else if (bounds) _map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 0 });
 }
@@ -735,7 +838,7 @@ function renderRoute() {
     } else {
       const k = kindOf(nd.e.kind);
       html += `<div class="sn-node" style="left:${p.x}px;top:${p.y}px;--c:${c}">` +
-        `<div class="sn-icon"><span>${k.icon}</span></div>` +
+        `<div class="sn-icon"><span>${entryIcon(nd.e)}</span></div>` +
         `<div class="sn-dot"></div>` +
         `<div class="sn-label"><b>${escapeAttr(nd.e.place)}</b>` +
           (nd.e.start ? `<span class="sn-time">${escapeAttr(nd.e.start)}</span>` : '') +
