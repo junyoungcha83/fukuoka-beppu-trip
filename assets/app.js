@@ -32,6 +32,8 @@ function kindOf(id) { return KIND_MAP[id] || KINDS[0]; }
 // 경로(스네이크) 일자별 색 — 위(Day1, 연함) → 아래(Day5, 진함)
 const DAY_COLORS = ['#e6b8a2', '#df9b86', '#d57c80', '#c45f74', '#9c2f63'];
 function dayColor(ci) { return DAY_COLORS[Math.min(Math.max(ci, 0), DAY_COLORS.length - 1)]; }
+// 지도 시간순 연속 경로선 색
+const ROUTE_LINE_COLOR = '#e11d48';
 
 // 커스텀 아이콘 선택 세트 (항목별 e.icon 으로 저장; 미지정 시 종류 기본)
 const ICON_SET = [
@@ -741,23 +743,19 @@ function drawMarkers() {
     else bounds.extend([e.lng, e.lat]);
   }
 
-  // 일자별 시간순 경로선 (좌표 있는 항목 2개 이상)
-  const lineDays = activeDay === 'all' ? DAYS : DAYS.filter(d => d.id === activeDay);
-  const feats = [];
-  for (const day of lineDays) {
-    const ci = DAYS.findIndex(d => d.id === day.id);
-    const dayPts = state.entries
-      .filter(e => e.day === day.id && typeof e.lat === 'number' && typeof e.lng === 'number')
-      .slice()
-      .sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99'));
-    if (dayPts.length >= 2) {
-      feats.push({
-        type: 'Feature',
-        properties: { color: dayColor(ci) },
-        geometry: { type: 'LineString', coordinates: dayPts.map(e => [e.lng, e.lat]) },
-      });
-    }
-  }
+  // 시간순 연속 경로선 — 일자 구분 없이 전체를 하나의 선으로 (일자→시작시간 순)
+  const dayIdx = id => DAYS.findIndex(d => d.id === id);
+  const ordered = state.entries
+    .filter(e => typeof e.lat === 'number' && typeof e.lng === 'number' &&
+      (activeDay === 'all' || e.day === activeDay))
+    .slice()
+    .sort((a, b) => (dayIdx(a.day) - dayIdx(b.day)) ||
+      (a.start || '99:99').localeCompare(b.start || '99:99'));
+  const feats = ordered.length >= 2 ? [{
+    type: 'Feature',
+    properties: { color: ROUTE_LINE_COLOR },
+    geometry: { type: 'LineString', coordinates: ordered.map(e => [e.lng, e.lat]) },
+  }] : [];
   const src = _map.getSource('trip-lines');
   if (src) src.setData({ type: 'FeatureCollection', features: feats });
 
