@@ -414,7 +414,8 @@ function makeRowCard(entry, dayId) {
     <div class="row-row geo-row">
       <input class="f-lat" type="text" inputmode="decimal" placeholder="위도 lat" aria-label="위도" value="${e.lat == null ? '' : escapeAttr(e.lat)}" />
       <input class="f-lng" type="text" inputmode="decimal" placeholder="경도 lng" aria-label="경도" value="${e.lng == null ? '' : escapeAttr(e.lng)}" />
-      <button type="button" class="btn-geo" title="장소명으로 좌표 찾기">📍 좌표</button>
+      <button type="button" class="btn-map" title="지도에서 검색·선택">🗺️ 지도</button>
+      <button type="button" class="btn-geo" title="장소명으로 좌표 자동 찾기">📍 자동</button>
     </div>
   `;
 
@@ -452,6 +453,7 @@ function makeRowCard(entry, dayId) {
   });
 
   card.querySelector('.btn-geo').onclick = () => geocodeRow(card, dayId);
+  card.querySelector('.btn-map').onclick = () => openMapPicker(card, dayId);
 
   card.querySelector('.row-delete').onclick = () => {
     const id = card.dataset.id;
@@ -504,34 +506,196 @@ function openIconPicker(card, dayId) {
   _pickerEl.classList.remove('hidden');
 }
 
-// 장소명 → 좌표 (OpenStreetMap Nominatim, best-effort)
+// 한국어 라벨 언어값 (MapTiler)
+function koLang() {
+  return (typeof maptilersdk !== 'undefined' && maptilersdk.Language && maptilersdk.Language.KOREAN) || 'ko';
+}
+
+// 장소 검색 → 후보 목록 [{lat,lng,name}]. MapTiler(한국어) 우선, 실패 시 Nominatim 폴백.
+async function geocodeSearch(q) {
+  if (!q || !q.trim()) return [];
+  // 1) MapTiler 지오코딩 — 같은 키, 한국어, 일본 한정, 규슈 근방 우선
+  if (MAPTILER_KEY && MAPTILER_KEY !== 'REPLACE_WITH_MAPTILER_KEY') {
+    try {
+      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(q)}.json` +
+        `?key=${MAPTILER_KEY}&language=ko&country=jp&proximity=130.8,33.5&limit=5`;
+      const res = await fetch(url);
+      const d = await res.json();
+      const fs = (d.features || [])
+        .filter(f => Array.isArray(f.center) && f.center.length === 2)
+        .map(f => ({ lng: f.center[0], lat: f.center[1], name: f.place_name || f.text || q }));
+      if (fs.length) return fs;
+    } catch (e) {}
+  }
+  // 2) Nominatim 폴백
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=jp&accept-language=ko&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const arr = await res.json();
+    if (Array.isArray(arr)) {
+      return arr.map(x => ({ lat: parseFloat(x.lat), lng: parseFloat(x.lon), name: x.display_name || q }));
+    }
+  } catch (e) {}
+  return [];
+}
+async function geocodeFirst(q) {
+  const list = await geocodeSearch(q);
+  return list.length ? list[0] : null;
+}
+
+// 빠른 자동 좌표 — 장소명으로 바로 채움 (📍 버튼)
 async function geocodeRow(card, dayId) {
   const place = card.querySelector('.f-place').value.trim();
   if (!place) { alert('먼저 장소명을 입력하세요.'); return; }
   const btn = card.querySelector('.btn-geo');
   const original = btn.textContent;
   btn.disabled = true; btn.textContent = '검색중…';
-  try {
-    const q = encodeURIComponent(place + ' 일본');
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`, {
-      headers: { 'Accept': 'application/json' },
-    });
-    const arr = await res.json();
-    if (Array.isArray(arr) && arr.length) {
-      const lat = parseFloat(arr[0].lat), lng = parseFloat(arr[0].lon);
-      card.querySelector('.f-lat').value = lat;
-      card.querySelector('.f-lng').value = lng;
-      ensureEntry(card, dayId);
-      const target = findEntry(card.dataset.id);
-      if (target) { target.lat = lat; target.lng = lng; target.updated_at = nowIso(); saveLocal(); }
-      btn.textContent = '찾음 ✓';
-    } else {
-      btn.textContent = '못 찾음';
-    }
-  } catch (e) {
-    btn.textContent = '오류';
+  const r = await geocodeFirst(place);
+  if (r) {
+    card.querySelector('.f-lat').value = r.lat;
+    card.querySelector('.f-lng').value = r.lng;
+    ensureEntry(card, dayId);
+    const target = findEntry(card.dataset.id);
+    if (target) { target.lat = r.lat; target.lng = r.lng; target.updated_at = nowIso(); saveLocal(); }
+    btn.textContent = '찾음 ✓';
+  } else {
+    btn.textContent = '못 찾음';
   }
   setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 1500);
+}
+
+// ── 지도 위치 선택기 (검색 + 탭/롱프레스로 좌표 지정) ──────────
+let _mpEl = null, _mpMap = null, _mpMarker = null, _mpCoord = null, _mpTarget = null;
+
+function ensureMapPickerEl() {
+  if (_mpEl) return;
+  _mpEl = document.createElement('div');
+  _mpEl.className = 'map-picker hidden';
+  _mpEl.innerHTML = `
+    <div class="mp-head"><span>지도에서 위치 선택</span><button class="mp-close" aria-label="닫기">×</button></div>
+    <div class="mp-search">
+      <input class="mp-q" type="text" placeholder="장소 검색 (예: 후쿠오카 텐진 지하상가)" />
+      <button class="mp-go" type="button">검색</button>
+    </div>
+    <div class="mp-results hidden"></div>
+    <div id="mp-map" class="mp-map"></div>
+    <div class="mp-foot">
+      <span class="mp-coord"></span>
+      <button class="mp-confirm" type="button" disabled>이 위치로 선택</button>
+    </div>`;
+  document.body.appendChild(_mpEl);
+  _mpEl.querySelector('.mp-close').onclick = closeMapPicker;
+  _mpEl.querySelector('.mp-go').onclick = pickerSearch;
+  _mpEl.querySelector('.mp-q').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); pickerSearch(); }
+  });
+  _mpEl.querySelector('.mp-confirm').onclick = confirmMapPicker;
+}
+
+function initPickerMap() {
+  if (_mpMap || typeof maptilersdk === 'undefined') return;
+  maptilersdk.config.apiKey = MAPTILER_KEY;
+  maptilersdk.config.primaryLanguage = koLang();   // 한국어 라벨
+  const opts = { container: 'mp-map', center: [130.4017, 33.5902], zoom: 11, language: koLang() };
+  if (maptilersdk.MapStyle && maptilersdk.MapStyle.STREETS) opts.style = maptilersdk.MapStyle.STREETS;
+  _mpMap = new maptilersdk.Map(opts);
+  const place = e => setPickerMarker(e.lngLat.lng, e.lngLat.lat);
+  _mpMap.on('click', place);        // 탭
+  _mpMap.on('contextmenu', place);  // 롱프레스 / 우클릭
+}
+
+function setPickerMarker(lng, lat) {
+  _mpCoord = { lng, lat };
+  const box = _mpEl && _mpEl.querySelector('.mp-results');
+  if (box) box.classList.add('hidden');   // 지점 확정되면 후보 목록 닫음
+  if (!_mpMarker) {
+    _mpMarker = new maptilersdk.Marker({ draggable: true, color: '#0ea5e9' }).setLngLat([lng, lat]).addTo(_mpMap);
+    _mpMarker.on('dragend', () => { const p = _mpMarker.getLngLat(); _mpCoord = { lng: p.lng, lat: p.lat }; updatePickerFoot(); });
+  } else {
+    _mpMarker.setLngLat([lng, lat]);
+  }
+  updatePickerFoot();
+}
+
+function updatePickerFoot() {
+  const coordEl = _mpEl.querySelector('.mp-coord');
+  const btn = _mpEl.querySelector('.mp-confirm');
+  if (_mpCoord) {
+    coordEl.textContent = `위도 ${_mpCoord.lat.toFixed(5)}, 경도 ${_mpCoord.lng.toFixed(5)}`;
+    btn.disabled = false;
+  } else {
+    coordEl.textContent = '지도를 탭하거나 길게 눌러 위치를 지정하세요';
+    btn.disabled = true;
+  }
+}
+
+function renderPickerResults(list) {
+  const box = _mpEl.querySelector('.mp-results');
+  if (!list.length) { box.innerHTML = ''; box.classList.add('hidden'); return; }
+  box.innerHTML = list.map((r, i) => `<button class="mp-res" data-i="${i}">${escapeAttr(r.name)}</button>`).join('');
+  box.classList.remove('hidden');
+  box.querySelectorAll('.mp-res').forEach(b => {
+    b.onclick = () => {
+      const r = list[+b.dataset.i];
+      _mpMap.flyTo({ center: [r.lng, r.lat], zoom: 16, duration: 0 });
+      setPickerMarker(r.lng, r.lat);   // 결과 선택 = 그 지점에 마커
+    };
+  });
+}
+
+async function pickerSearch() {
+  const input = _mpEl.querySelector('.mp-q'), btn = _mpEl.querySelector('.mp-go');
+  const q = input.value.trim();
+  if (!q) return;
+  btn.disabled = true; const o = btn.textContent; btn.textContent = '검색중…';
+  const list = await geocodeSearch(q);
+  btn.disabled = false; btn.textContent = o;
+  if (!list.length || !_mpMap) {
+    renderPickerResults([]);
+    alert('검색 결과가 없습니다. 더 일반적인 이름으로 검색하거나, 지도를 직접 눌러 위치를 지정하세요.');
+    return;
+  }
+  // 첫 결과로 이동(미리보기) + 후보 목록 표시 — 목록/지도에서 정확한 지점 선택
+  _mpMap.flyTo({ center: [list[0].lng, list[0].lat], zoom: 14, duration: 0 });
+  renderPickerResults(list);
+}
+
+function openMapPicker(card, dayId) {
+  if (!getEditToken()) { alert('편집 모드에서만 변경할 수 있습니다.'); return; }
+  if (typeof maptilersdk === 'undefined') { alert('지도를 불러오지 못했습니다 (네트워크 확인).'); return; }
+  ensureEntry(card, dayId);
+  ensureMapPickerEl();
+  _mpTarget = { card, id: card.dataset.id };
+  _mpEl.classList.remove('hidden');
+  initPickerMap();
+  const t = findEntry(_mpTarget.id);
+  _mpEl.querySelector('.mp-q').value = (t && t.place) || '';
+  setTimeout(() => {
+    _mpMap.resize();
+    if (t && typeof t.lat === 'number' && typeof t.lng === 'number') {
+      _mpMap.jumpTo({ center: [t.lng, t.lat], zoom: 15 });
+      setPickerMarker(t.lng, t.lat);
+    } else {
+      _mpCoord = null;
+      if (_mpMarker) { _mpMarker.remove(); _mpMarker = null; }
+      updatePickerFoot();
+    }
+  }, 80);
+}
+
+function closeMapPicker() { if (_mpEl) _mpEl.classList.add('hidden'); }
+
+function confirmMapPicker() {
+  if (!_mpCoord || !_mpTarget) return;
+  const t = findEntry(_mpTarget.id);
+  if (t) {
+    t.lat = _mpCoord.lat; t.lng = _mpCoord.lng; t.updated_at = nowIso();
+    saveLocal();
+    const card = _mpTarget.card;
+    card.querySelector('.f-lat').value = _mpCoord.lat.toFixed(6);
+    card.querySelector('.f-lng').value = _mpCoord.lng.toFixed(6);
+  }
+  closeMapPicker();
 }
 
 function ensureEntry(card, dayId) {

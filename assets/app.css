@@ -143,14 +143,15 @@ input, select, textarea { font-size: 16px; }   /* iOS auto-zoom 방지 */
 .row-card .f-memo  { flex: 1 1 140px; }
 .row-card .geo-row .f-lat,
 .row-card .geo-row .f-lng { flex: 1 1 90px; }
-.btn-geo {
+.btn-geo, .btn-map {
   flex: 0 0 auto;
   background: #e0f2fe; color: var(--primary-dark);
   border: 1px solid #bae6fd; border-radius: 8px;
   padding: 7px 10px; font-size: .82rem; font-weight: 600;
   cursor: pointer; white-space: nowrap;
 }
-.btn-geo:disabled { opacity: .6; }
+.btn-map { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-geo:disabled, .btn-map:disabled { opacity: .6; }
 
 .row-delete {
   position: absolute; top: 6px; right: 6px;
@@ -352,7 +353,8 @@ body.read-only .fab-save { display: none; }
 /* ── 읽기 전용 모드 ── */
 body.read-only .btn-add,
 body.read-only .row-delete,
-body.read-only .btn-geo { display: none !important; }
+body.read-only .btn-geo,
+body.read-only .btn-map { display: none !important; }
 body.read-only .row-card input,
 body.read-only .row-card select { pointer-events: none; background: #f8fafc; }
 body.read-only .f-icon { pointer-events: none; background: #f8fafc; }
@@ -387,6 +389,48 @@ body.read-only .f-icon { pointer-events: none; background: #f8fafc; }
 }
 .ip-cell:active { background: #f1f5f9; }
 .ip-reset { font-size: .78rem; font-weight: 700; color: var(--muted); }
+
+/* ── 지도 위치 선택기 ── */
+.map-picker {
+  position: fixed; inset: 0; z-index: 110;
+  background: #fff; display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+}
+.map-picker.hidden { display: none; }
+.mp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--primary); color: #fff; font-weight: 700;
+}
+.mp-close { border: none; background: transparent; color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
+.mp-search { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.mp-search .mp-q {
+  flex: 1; min-width: 0; padding: 9px 10px;
+  border: 1px solid var(--border); border-radius: 8px; font-size: 16px;
+}
+.mp-search .mp-go {
+  flex: 0 0 auto; background: var(--primary); color: #fff;
+  border: none; border-radius: 8px; padding: 0 14px; font-weight: 700; cursor: pointer;
+}
+.mp-results {
+  max-height: 40%; overflow-y: auto;
+  border-bottom: 1px solid var(--border); background: #fff;
+}
+.mp-results.hidden { display: none; }
+.mp-res {
+  display: block; width: 100%; text-align: left;
+  padding: 10px 14px; border: none; border-bottom: 1px solid var(--border);
+  background: #fff; font-size: .82rem; color: var(--text); cursor: pointer;
+  white-space: normal; word-break: keep-all;
+}
+.mp-res:active { background: #f1f5f9; }
+.mp-map { flex: 1; min-height: 0; }
+.mp-foot { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--border); }
+.mp-coord { flex: 1; font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mp-confirm {
+  flex: 0 0 auto; background: var(--primary); color: #fff;
+  border: none; border-radius: 999px; padding: 11px 20px; font-weight: 700; cursor: pointer;
+}
+.mp-confirm:disabled { opacity: .5; cursor: default; }
 
 /* ── 동기화 상태 색 ── */
 .sync-status.pending  { color: #fef3c7; }
