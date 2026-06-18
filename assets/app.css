@@ -382,7 +382,81 @@ body.read-only .fab-save { display: none; }
 body.read-only .btn-add,
 body.read-only .row-delete,
 body.read-only .btn-geo,
-body.read-only .btn-map { display: none !important; }
+body.read-only .btn-map,
+body.read-only .btn-att,
+body.read-only .att-del { display: none !important; }
+
+/* ── 첨부파일 (상세 탭) ── */
+.att-row { align-items: center; }
+.btn-att {
+  flex: 0 0 auto;
+  background: #ecfeff; color: #0e7490;
+  border: 1px solid #a5f3fc; border-radius: 8px;
+  padding: 7px 12px; font-size: .82rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
+.att-list { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+.att-list:empty { display: none; }
+.att-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #f1f5f9; border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 4px 3px 10px;
+  font-size: .76rem; max-width: 100%;
+}
+.att-name { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+.att-del {
+  border: none; background: #e2e8f0; color: var(--danger);
+  width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+  font-size: 14px; line-height: 1; flex: 0 0 auto;
+}
+
+/* ── 경로 탭 일자별 첨부 ── */
+.route-attach { margin-top: 6px; }
+.route-attach:empty { display: none; }
+.ra-day { margin-top: 18px; }
+.ra-title {
+  margin: 0 0 10px; font-size: .95rem; font-weight: 800;
+  color: var(--c, var(--primary-dark));
+  border-left: 4px solid var(--c, var(--primary)); padding-left: 8px;
+}
+.ra-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.ra-item {
+  border: 1px solid var(--border); border-radius: 10px; background: #fff;
+  padding: 0; overflow: hidden; cursor: pointer; text-align: center;
+  display: flex; flex-direction: column;
+}
+.ra-thumb {
+  width: 100%; aspect-ratio: 1 / 1;
+  background: #f1f5f9 center/cover no-repeat;
+  display: flex; align-items: center; justify-content: center; font-size: 30px;
+}
+.ra-thumb.ra-file { background: #eef2ff; }
+.ra-cap {
+  font-size: .68rem; padding: 4px 5px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── 첨부 뷰어 (라이트박스) ── */
+.att-viewer {
+  position: fixed; inset: 0; z-index: 120;
+  background: rgba(0,0,0,.88);
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom);
+}
+.att-viewer.hidden { display: none; }
+.av-close {
+  position: absolute; top: calc(8px + env(safe-area-inset-top)); right: 12px;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: none; background: rgba(255,255,255,.2); color: #fff;
+  font-size: 24px; line-height: 1; cursor: pointer; z-index: 2;
+}
+.av-body { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
+.av-body img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.av-body iframe { width: 100%; height: 86%; border: none; background: #fff; border-radius: 6px; }
+.av-open {
+  background: var(--primary); color: #fff; text-decoration: none;
+  padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: .9rem;
+}
 body.read-only .row-card input,
 body.read-only .row-card select { pointer-events: none; background: #f8fafc; }
 body.read-only .f-icon { pointer-events: none; background: #f8fafc; }

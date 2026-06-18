@@ -417,6 +417,10 @@ function makeRowCard(entry, dayId) {
       <button type="button" class="btn-map" title="지도에서 검색·선택">🗺️ 지도</button>
       <button type="button" class="btn-geo" title="장소명으로 좌표 자동 찾기">📍 자동</button>
     </div>
+    <div class="row-row att-row">
+      <label class="btn-att" title="바우처·티켓 등 첨부 (이 기기에 저장)">📎 첨부<input type="file" class="f-att" accept="image/*,application/pdf" multiple hidden></label>
+      <div class="att-list"></div>
+    </div>
   `;
 
   const textFields = ['kind', 'place', 'start', 'end', 'memo'];
@@ -455,11 +459,24 @@ function makeRowCard(entry, dayId) {
   card.querySelector('.btn-geo').onclick = () => geocodeRow(card, dayId);
   card.querySelector('.btn-map').onclick = () => openMapPicker(card, dayId);
 
+  // 첨부파일 (이 기기 저장)
+  const fileInput = card.querySelector('.f-att');
+  fileInput.addEventListener('change', async () => {
+    if (!getEditToken()) { alert('편집 모드에서만 첨부할 수 있습니다.'); fileInput.value = ''; return; }
+    ensureEntry(card, dayId);
+    const id = card.dataset.id;
+    for (const f of fileInput.files) await addAttachmentFile(id, f);
+    fileInput.value = '';
+    refreshAttList(card, id);
+  });
+  if (entry) refreshAttList(card, entry.id);
+
   card.querySelector('.row-delete').onclick = () => {
     const id = card.dataset.id;
     if (!id) { card.remove(); return; }
     if (!confirm('이 항목을 삭제할까요?')) return;
     state.entries = state.entries.filter(x => x.id !== id);
+    idbByEntry(id).then(atts => atts.forEach(a => idbDel(a.id))).catch(() => {});  // 첨부도 정리
     saveLocal();
     renderDetail();
   };
@@ -696,6 +713,131 @@ function confirmMapPicker() {
     card.querySelector('.f-lng').value = _mpCoord.lng.toFixed(6);
   }
   closeMapPicker();
+}
+
+// ── 첨부파일 (이 기기 IndexedDB 저장) ─────────────
+// 바우처·모바일티켓 등 파일을 항목(entry)별로 로컬 보관. 동기화 상태(KV)엔 안 넣음.
+const IDB_NAME = 'fbtrip-attach', IDB_STORE = 'files';
+let _idbP = null;
+function idb() {
+  if (_idbP) return _idbP;
+  _idbP = new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        const s = db.createObjectStore(IDB_STORE, { keyPath: 'id' });
+        s.createIndex('entryId', 'entryId', { unique: false });
+      }
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return _idbP;
+}
+function idbAdd(rec) { return idb().then(db => new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).put(rec); tx.oncomplete = () => res(rec); tx.onerror = () => rej(tx.error); })); }
+function idbGet(id) { return idb().then(db => new Promise((res, rej) => { const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(id); req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); })); }
+function idbByEntry(entryId) { return idb().then(db => new Promise((res, rej) => { const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).index('entryId').getAll(entryId); req.onsuccess = () => res(req.result || []); req.onerror = () => rej(req.error); })); }
+function idbAll() { return idb().then(db => new Promise((res, rej) => { const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).getAll(); req.onsuccess = () => res(req.result || []); req.onerror = () => rej(req.error); })); }
+function idbDel(id) { return idb().then(db => new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); })); }
+
+function attIcon(type) {
+  if ((type || '').startsWith('image/')) return '🖼️';
+  if ((type || '').includes('pdf')) return '📄';
+  return '📎';
+}
+async function addAttachmentFile(entryId, file) {
+  if (file.size > 20 * 1024 * 1024) { alert(`'${file.name}' 이(가) 20MB를 넘어 저장하지 않습니다.`); return; }
+  const id = 'att_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  await idbAdd({ id, entryId, name: file.name || '첨부', type: file.type || '', size: file.size || 0, blob: file, created_at: nowIso() });
+}
+async function refreshAttList(card, entryId) {
+  const list = card.querySelector('.att-list');
+  if (!list) return;
+  const atts = entryId ? await idbByEntry(entryId) : [];
+  list.innerHTML = atts.map(a =>
+    `<span class="att-chip" data-id="${a.id}"><span class="att-name">${attIcon(a.type)} ${escapeAttr(a.name)}</span><button class="att-del" title="삭제" aria-label="삭제">×</button></span>`
+  ).join('');
+  list.querySelectorAll('.att-chip').forEach(ch => {
+    ch.querySelector('.att-name').onclick = () => openAttachment(ch.dataset.id);
+    ch.querySelector('.att-del').onclick = async e => {
+      e.stopPropagation();
+      if (!confirm('첨부를 삭제할까요?')) return;
+      await idbDel(ch.dataset.id);
+      refreshAttList(card, entryId);
+    };
+  });
+}
+
+// 첨부 뷰어 (라이트박스)
+let _attViewer = null;
+function ensureAttViewer() {
+  if (_attViewer) return _attViewer;
+  _attViewer = document.createElement('div');
+  _attViewer.className = 'att-viewer hidden';
+  _attViewer.innerHTML = `<button class="av-close" aria-label="닫기">×</button><div class="av-body"></div>`;
+  document.body.appendChild(_attViewer);
+  _attViewer.addEventListener('click', e => {
+    if (e.target === _attViewer || e.target.classList.contains('av-close')) closeAttViewer();
+  });
+  return _attViewer;
+}
+async function openAttachment(id) {
+  const rec = await idbGet(id);
+  if (!rec) { alert('첨부를 찾을 수 없습니다 (이 기기에 없음).'); return; }
+  const url = URL.createObjectURL(rec.blob);
+  const v = ensureAttViewer();
+  const body = v.querySelector('.av-body');
+  if ((rec.type || '').startsWith('image/')) {
+    body.innerHTML = `<img src="${url}" alt="${escapeAttr(rec.name)}">`;
+  } else {
+    body.innerHTML = `<iframe src="${url}" title="${escapeAttr(rec.name)}"></iframe>` +
+      `<a class="av-open" href="${url}" target="_blank" rel="noopener">새 탭에서 열기 / 다운로드</a>`;
+  }
+  v.classList.remove('hidden');
+  if (v._url) URL.revokeObjectURL(v._url);
+  v._url = url;
+}
+function closeAttViewer() {
+  if (!_attViewer) return;
+  _attViewer.classList.add('hidden');
+  _attViewer.querySelector('.av-body').innerHTML = '';
+  if (_attViewer._url) { URL.revokeObjectURL(_attViewer._url); _attViewer._url = null; }
+}
+
+// 경로 탭 — 일자별 첨부파일 목록 (스네이크 하단)
+async function renderRouteAttachments(box, days) {
+  let all = [];
+  try { all = await idbAll(); } catch (e) {}
+  const byDay = {};
+  for (const a of all) {
+    const e = findEntry(a.entryId);
+    if (!e) continue;
+    (byDay[e.day] = byDay[e.day] || []).push({ a, e });
+  }
+  let html = '';
+  for (const day of days) {
+    const items = byDay[day.id];
+    if (!items || !items.length) continue;
+    items.sort((x, y) => (x.e.start || '99:99').localeCompare(y.e.start || '99:99'));
+    const ci = DAYS.findIndex(d => d.id === day.id);
+    html += `<section class="ra-day"><h3 class="ra-title" style="--c:${dayColor(ci)}">${escapeAttr(day.label)} 첨부파일</h3><div class="ra-grid">`;
+    for (const { a, e } of items) {
+      const isImg = (a.type || '').startsWith('image/');
+      html += `<button class="ra-item" data-id="${a.id}">` +
+        `<span class="ra-thumb${isImg ? '' : ' ra-file'}">${isImg ? '' : attIcon(a.type)}</span>` +
+        `<span class="ra-cap">${escapeAttr(e.place || a.name)}</span></button>`;
+    }
+    html += `</div></section>`;
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('.ra-item').forEach(it => { it.onclick = () => openAttachment(it.dataset.id); });
+  // 이미지 썸네일 채우기
+  for (const a of all) {
+    if (!(a.type || '').startsWith('image/')) continue;
+    const el = box.querySelector(`.ra-item[data-id="${a.id}"] .ra-thumb`);
+    if (el) el.style.backgroundImage = `url(${URL.createObjectURL(a.blob)})`;
+  }
 }
 
 function ensureEntry(card, dayId) {
@@ -1017,6 +1159,12 @@ function renderRoute() {
   snake.innerHTML = html;
   wrap.appendChild(snake);
   attachSnLongPress(snake);
+
+  // 일자별 첨부파일 (스네이크 하단)
+  const attBox = document.createElement('div');
+  attBox.className = 'route-attach';
+  wrap.appendChild(attBox);
+  renderRouteAttachments(attBox, days);
 }
 
 // ── 경로 포인트 롱프레스 → 메모 팝업 ─────────────
