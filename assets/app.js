@@ -999,12 +999,13 @@ function renderRoute() {
       html += `<div class="sn-badge" style="left:${p.x}px;top:${p.y}px;--c:${c}">${escapeAttr(nd.label)}</div>`;
     } else {
       const k = kindOf(nd.e.kind);
-      html += `<div class="sn-node" style="left:${p.x}px;top:${p.y}px;--c:${c}">` +
+      const hasMemo = !!(nd.e.memo && nd.e.memo.trim());
+      html += `<div class="sn-node${hasMemo ? ' has-memo' : ''}" data-id="${escapeAttr(nd.e.id)}" style="left:${p.x}px;top:${p.y}px;--c:${c}">` +
         `<div class="sn-icon"><span>${entryIcon(nd.e)}</span></div>` +
         `<div class="sn-dot"></div>` +
         `<div class="sn-label"><b>${escapeAttr(nd.e.place)}</b>` +
           (nd.e.start ? `<span class="sn-time">${escapeAttr(nd.e.start)}</span>` : '') +
-          (nd.e.memo ? `<small>${escapeAttr(nd.e.memo)}</small>` : '') +
+          (hasMemo ? `<span class="sn-memoflag">📝 길게</span>` : '') +
         `</div></div>`;
     }
   });
@@ -1015,6 +1016,47 @@ function renderRoute() {
   snake.style.height = totalH + 'px';
   snake.innerHTML = html;
   wrap.appendChild(snake);
+  attachSnLongPress(snake);
+}
+
+// ── 경로 포인트 롱프레스 → 메모 팝업 ─────────────
+let _snLpTimer = null, _snPopup = null, _snStart = null;
+function ensureSnPopup() {
+  if (_snPopup) return _snPopup;
+  _snPopup = document.createElement('div');
+  _snPopup.className = 'sn-popup hidden';
+  document.body.appendChild(_snPopup);
+  return _snPopup;
+}
+function showSnPopup(node) {
+  const e = findEntry(node.dataset.id);
+  if (!e) return;
+  const pop = ensureSnPopup();
+  const memo = (e.memo || '').trim();
+  pop.innerHTML =
+    `<div class="snp-title">${entryIcon(e)} ${escapeAttr(e.place || '')}</div>` +
+    (e.start ? `<div class="snp-time">${escapeAttr(e.start)}${e.end ? '~' + escapeAttr(e.end) : ''}</div>` : '') +
+    `<div class="snp-memo">${memo ? escapeAttr(memo) : '(메모 없음)'}</div>`;
+  pop.classList.remove('hidden');
+  const r = node.getBoundingClientRect();
+  pop.style.left = Math.min(window.innerWidth - 12, Math.max(12, r.left)) + 'px';
+  pop.style.top = Math.max(8, r.top - 52) + 'px';
+}
+function hideSnPopup() {
+  if (_snLpTimer) { clearTimeout(_snLpTimer); _snLpTimer = null; }
+  if (_snPopup) _snPopup.classList.add('hidden');
+}
+function attachSnLongPress(snake) {
+  snake.querySelectorAll('.sn-node').forEach(node => {
+    node.addEventListener('pointerdown', ev => {
+      _snStart = { x: ev.clientX, y: ev.clientY };
+      _snLpTimer = setTimeout(() => { _snLpTimer = null; showSnPopup(node); }, 300);
+    });
+    node.addEventListener('pointermove', ev => {
+      if (_snStart && (Math.abs(ev.clientX - _snStart.x) > 10 || Math.abs(ev.clientY - _snStart.y) > 10)) hideSnPopup();
+    });
+    node.addEventListener('contextmenu', ev => ev.preventDefault());
+  });
 }
 
 // ── 부트 ─────────────────────────────────────────
@@ -1024,6 +1066,10 @@ async function bootstrap() {
   });
   document.getElementById('btnEdit').onclick = promptEditToken;
   document.getElementById('btnSave').onclick = manualSave;
+
+  // 경로 메모 팝업 — 손을 떼면(어디서든) 닫힘
+  document.addEventListener('pointerup', hideSnPopup);
+  document.addEventListener('pointercancel', hideSnPopup);
 
   // 화면 크기 변경 시 스네이크 경로 재배치 / 지도 크기 갱신
   let _rzTimer = null;

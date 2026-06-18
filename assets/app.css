@@ -309,7 +309,35 @@ body.read-only .fab-save { display: none; }
 .snake svg { position: absolute; inset: 0; }
 
 /* 라인 위 점 + 위 아이콘 + 아래 라벨 (0크기 앵커에 절대배치) */
-.sn-node { position: absolute; width: 0; height: 0; }
+.sn-node {
+  position: absolute; width: 0; height: 0;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.sn-node.has-memo { cursor: pointer; }
+.sn-memoflag {
+  display: block; font-size: .58rem; margin-top: 2px;
+  color: var(--c); opacity: .85; font-weight: 700; white-space: nowrap;
+}
+
+/* 롱프레스 메모 말풍선 */
+.sn-popup {
+  position: fixed; z-index: 90;
+  transform: translate(-50%, -100%);
+  background: #1f2937; color: #fff;
+  border-radius: 10px; padding: 8px 12px;
+  max-width: 240px; font-size: .8rem; line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(0,0,0,.32);
+  pointer-events: none;
+}
+.sn-popup.hidden { display: none; }
+.sn-popup .snp-title { font-weight: 800; font-size: .86rem; word-break: keep-all; }
+.sn-popup .snp-time { font-size: .7rem; color: #93c5fd; font-variant-numeric: tabular-nums; margin-top: 1px; }
+.sn-popup .snp-memo { margin-top: 5px; white-space: pre-wrap; word-break: keep-all; }
+.sn-popup::after {
+  content: ''; position: absolute; left: 50%; bottom: -7px;
+  transform: translateX(-50%);
+  border: 7px solid transparent; border-top-color: #1f2937; border-bottom: 0;
+}
 .sn-dot {
   position: absolute; left: 0; top: 0;
   width: 14px; height: 14px; border-radius: 50%;
