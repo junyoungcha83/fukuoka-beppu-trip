@@ -484,6 +484,24 @@ function makeRowCard(entry, dayId) {
   return card;
 }
 
+// ── 모달 뒤로가기 처리 (안드로이드 뒤로가기 = 닫기) ──
+// 모달 열 때 history.pushState, 닫을 땐 history.back() → popstate 에서 실제 닫힘 처리.
+const _modalStack = [];
+function openModal(hideFn) {
+  _modalStack.push(hideFn);
+  try { history.pushState({ fbModal: _modalStack.length }, ''); } catch (e) {}
+}
+function closeTopModal() {
+  if (_modalStack.length) {
+    try { history.back(); }
+    catch (e) { const fn = _modalStack.pop(); if (fn) fn(); }
+  }
+}
+window.addEventListener('popstate', () => {
+  const fn = _modalStack.pop();
+  if (fn) fn();
+});
+
 // ── 아이콘 선택 팝업 ───────────────────────────
 let _pickerEl = null;
 let _pickerTarget = null;
@@ -499,9 +517,7 @@ function ensurePickerEl() {
     </div></div>`;
   document.body.appendChild(_pickerEl);
   _pickerEl.addEventListener('click', e => {
-    if (e.target === _pickerEl || e.target.classList.contains('ip-close')) {
-      _pickerEl.classList.add('hidden'); return;
-    }
+    if (e.target === _pickerEl || e.target.classList.contains('ip-close')) { closeTopModal(); return; }
     const cell = e.target.closest('.ip-cell');
     if (!cell || !_pickerTarget) return;
     const target = findEntry(_pickerTarget.id);
@@ -512,15 +528,17 @@ function ensurePickerEl() {
       if (btn) btn.textContent = entryIcon(target);
       saveLocal();
     }
-    _pickerEl.classList.add('hidden');
+    closeTopModal();
   });
 }
+function hideIconPicker() { if (_pickerEl) _pickerEl.classList.add('hidden'); }
 function openIconPicker(card, dayId) {
   if (!getEditToken()) { alert('편집 모드에서만 변경할 수 있습니다.'); return; }
   ensureEntry(card, dayId);
   ensurePickerEl();
   _pickerTarget = { card, id: card.dataset.id };
   _pickerEl.classList.remove('hidden');
+  openModal(hideIconPicker);   // 뒤로가기 = 닫기
 }
 
 // 한국어 라벨 언어값 (MapTiler)
@@ -601,7 +619,7 @@ function ensureMapPickerEl() {
       <button class="mp-confirm" type="button" disabled>이 위치로 선택</button>
     </div>`;
   document.body.appendChild(_mpEl);
-  _mpEl.querySelector('.mp-close').onclick = closeMapPicker;
+  _mpEl.querySelector('.mp-close').onclick = closeTopModal;
   _mpEl.querySelector('.mp-go').onclick = pickerSearch;
   _mpEl.querySelector('.mp-q').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); pickerSearch(); }
@@ -684,6 +702,7 @@ function openMapPicker(card, dayId) {
   ensureMapPickerEl();
   _mpTarget = { card, id: card.dataset.id };
   _mpEl.classList.remove('hidden');
+  openModal(closeMapPicker);   // 뒤로가기 = 닫기
   initPickerMap();
   const t = findEntry(_mpTarget.id);
   _mpEl.querySelector('.mp-q').value = (t && t.place) || '';
@@ -712,7 +731,7 @@ function confirmMapPicker() {
     card.querySelector('.f-lat').value = _mpCoord.lat.toFixed(6);
     card.querySelector('.f-lng').value = _mpCoord.lng.toFixed(6);
   }
-  closeMapPicker();
+  closeTopModal();
 }
 
 // ── 첨부파일 (이 기기 IndexedDB 저장) ─────────────
@@ -778,7 +797,7 @@ function ensureAttViewer() {
   _attViewer.innerHTML = `<button class="av-close" aria-label="닫기">×</button><div class="av-body"></div>`;
   document.body.appendChild(_attViewer);
   _attViewer.addEventListener('click', e => {
-    if (e.target === _attViewer || e.target.classList.contains('av-close')) closeAttViewer();
+    if (e.target === _attViewer || e.target.classList.contains('av-close')) closeTopModal();
   });
   return _attViewer;
 }
@@ -789,14 +808,21 @@ async function openAttachment(id) {
   const v = ensureAttViewer();
   const body = v.querySelector('.av-body');
   if ((rec.type || '').startsWith('image/')) {
+    // 이미지는 인앱 표시
     body.innerHTML = `<img src="${url}" alt="${escapeAttr(rec.name)}">`;
   } else {
-    body.innerHTML = `<iframe src="${url}" title="${escapeAttr(rec.name)}"></iframe>` +
-      `<a class="av-open" href="${url}" target="_blank" rel="noopener">새 탭에서 열기 / 다운로드</a>`;
+    // PDF 등은 인앱 iframe 미지원(모바일) → 카드 + '열기'(새 탭/뷰어로 열기)
+    body.innerHTML =
+      `<div class="av-file">` +
+        `<div class="av-fileicon">${attIcon(rec.type)}</div>` +
+        `<div class="av-filename">${escapeAttr(rec.name)}</div>` +
+        `<a class="av-open" href="${url}" target="_blank" rel="noopener">열기</a>` +
+      `</div>`;
   }
-  v.classList.remove('hidden');
   if (v._url) URL.revokeObjectURL(v._url);
   v._url = url;
+  v.classList.remove('hidden');
+  openModal(closeAttViewer);   // 안드로이드 뒤로가기 = 닫기
 }
 function closeAttViewer() {
   if (!_attViewer) return;
