@@ -613,6 +613,11 @@ function ensureMapPickerEl() {
       <button class="mp-go" type="button">검색</button>
     </div>
     <div class="mp-results hidden"></div>
+    <div class="mp-paste">
+      <button class="mp-gmap" type="button" title="구글지도에서 장소 찾기(새 탭)">🔎 구글지도</button>
+      <input class="mp-coordin" type="text" placeholder="좌표/구글지도 링크 붙여넣기 (예: 33.59, 130.40)" />
+      <button class="mp-apply" type="button">적용</button>
+    </div>
     <div id="mp-map" class="mp-map"></div>
     <div class="mp-foot">
       <span class="mp-coord"></span>
@@ -624,7 +629,43 @@ function ensureMapPickerEl() {
   _mpEl.querySelector('.mp-q').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); pickerSearch(); }
   });
+  _mpEl.querySelector('.mp-gmap').onclick = openGoogleMaps;
+  _mpEl.querySelector('.mp-apply').onclick = () => applyPastedCoord(true);
+  const cin = _mpEl.querySelector('.mp-coordin');
+  cin.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyPastedCoord(true); } });
+  cin.addEventListener('paste', () => setTimeout(() => applyPastedCoord(false), 50));  // 붙여넣으면 자동 적용 시도
   _mpEl.querySelector('.mp-confirm').onclick = confirmMapPicker;
+}
+
+// 구글지도에서 현재 검색어로 장소 찾기(새 탭) — 거기서 좌표/링크 복사해 아래 칸에 붙여넣기
+function openGoogleMaps() {
+  const q = (_mpEl.querySelector('.mp-q').value || '').trim();
+  const url = q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : 'https://www.google.com/maps';
+  window.open(url, '_blank', 'noopener');
+}
+
+// 좌표 또는 구글지도 링크에서 위/경도 추출
+function parseLatLng(s) {
+  if (!s) return null;
+  s = String(s);
+  const chk = (lat, lng) => (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) ? { lat, lng } : null;
+  let m;
+  if ((m = s.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/))) return chk(+m[1], +m[2]);          // 구글 URL @lat,lng
+  if ((m = s.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/))) return chk(+m[1], +m[2]);      // ...!3dLAT!4dLNG
+  if ((m = s.match(/[?&](?:q|query|ll|destination|center|sll|daddr)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/))) return chk(+m[1], +m[2]);
+  if ((m = s.match(/(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/))) return chk(+m[1], +m[2]);  // 일반 "lat, lng"
+  return null;
+}
+
+function applyPastedCoord(showError) {
+  if (!_mpMap) return;
+  const r = parseLatLng(_mpEl.querySelector('.mp-coordin').value);
+  if (!r) {
+    if (showError) alert('좌표를 못 읽었어요.\n"33.5916, 130.3998" 형식이나 구글지도 링크(주소창 URL)를 붙여넣어 주세요.\n※ goo.gl 단축링크는 좌표가 없어요 — 지도에서 길게 눌러 나온 좌표를 복사하세요.');
+    return;
+  }
+  _mpMap.flyTo({ center: [r.lng, r.lat], zoom: 16, duration: 0 });
+  setPickerMarker(r.lng, r.lat);
 }
 
 function initPickerMap() {

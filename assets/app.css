@@ -524,6 +524,19 @@ body.read-only .f-icon { pointer-events: none; background: #f8fafc; }
   flex: 0 0 auto; background: var(--primary); color: #fff;
   border: none; border-radius: 8px; padding: 0 14px; font-weight: 700; cursor: pointer;
 }
+.mp-paste { display: flex; gap: 6px; padding: 0 12px 8px; border-bottom: 1px solid var(--border); align-items: center; }
+.mp-paste .mp-gmap {
+  flex: 0 0 auto; background: #fff; color: var(--primary-dark);
+  border: 1px solid var(--primary); border-radius: 8px; padding: 8px 10px; font-size: .82rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.mp-paste .mp-coordin {
+  flex: 1; min-width: 0; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+}
+.mp-paste .mp-apply {
+  flex: 0 0 auto; background: #e0f2fe; color: var(--primary-dark);
+  border: 1px solid #bae6fd; border-radius: 8px; padding: 8px 12px; font-weight: 700; font-size: .82rem; cursor: pointer;
+}
 .mp-results {
   max-height: 40%; overflow-y: auto;
   border-bottom: 1px solid var(--border); background: #fff;
