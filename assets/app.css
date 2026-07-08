@@ -90,20 +90,22 @@ input, select, textarea { font-size: 16px; }   /* iOS auto-zoom 방지 */
 .tab-panel.hidden { display: none; }
 
 /* ── 언어 탭 (회화 / 메뉴) ── */
-.lang-subtabs { display: flex; gap: 8px; margin: 0 0 12px; }
+.lang-subtabs { display: flex; gap: 8px; margin: 0; padding: 8px 0 10px;
+  position: sticky; top: 109px; z-index: 47; background: var(--bg, #f0f9ff); }
 .lang-subtab { flex: 1; padding: 9px; border: 1px solid var(--border, #e2e8f0); background: #fff;
   border-radius: 10px; font-size: .95rem; font-weight: 800; color: var(--muted, #64748b); cursor: pointer; }
 .lang-subtab.active { background: var(--primary, #0ea5e9); color: #fff; border-color: var(--primary, #0ea5e9); }
 .lang-body.hidden { display: none; }
 .lg-group { margin-bottom: 16px; }
-.lg-h { position: sticky; top: 0; z-index: 1; margin: 0 0 6px; padding: 7px 10px;
+.lg-h { margin: 0 0 6px; padding: 7px 10px;
   font-size: .9rem; font-weight: 800; color: #fff; background: var(--primary, #0ea5e9); border-radius: 8px; }
 .lg-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 9px 10px; border-bottom: 1px solid var(--border, #eef2f6); }
 .lg-ko { font-size: .9rem; font-weight: 700; color: #0f172a; flex: 1 1 42%; min-width: 0; line-height: 1.35; }
 .lg-jp { flex: 1 1 58%; text-align: right; min-width: 0; }
 .lg-ja { display: block; font-size: 1rem; font-weight: 700; color: #0369a1; line-height: 1.35; }
-.lg-ro { display: block; font-size: .78rem; color: var(--muted, #64748b); }
+.lg-kr { display: block; font-size: .82rem; font-weight: 600; color: #0f172a; line-height: 1.3; }
+.lg-ro { display: block; font-size: .74rem; color: var(--muted, #64748b); }
 
 /* ── 상세(입력) 탭 ── */
 .day-section { margin-bottom: 18px; }
