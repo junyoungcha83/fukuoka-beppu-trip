@@ -302,7 +302,7 @@ function updateEditUI() {
 }
 
 // ── 탭 / 미니탭(일자) ─────────────────────────────
-const TABS = ['grid', 'map', 'route', 'detail'];
+const TABS = ['grid', 'map', 'route', 'detail', 'lang'];
 function setActiveTab(t) {
   if (!TABS.includes(t)) return;
   activeTab = t;
@@ -351,7 +351,186 @@ function render() {
   if      (activeTab === 'grid')   renderGrid();
   else if (activeTab === 'map')    renderMap();
   else if (activeTab === 'route')  renderRoute();
+  else if (activeTab === 'lang')   renderLang();
   else                             renderDetail();
+}
+
+// ── 언어 탭: 회화 / 메뉴 ───────────────────────────
+// 회화 — 음식점 주문 (한국어 / 일본어 / 발음)
+const CONV = [
+  { g:'입장 · 자리', lines:[
+    { ko:'두 명이요', ja:'2人です', ro:'futari desu' },
+    { ko:'혼자예요', ja:'1人です', ro:'hitori desu' },
+    { ko:'자리 있어요?', ja:'席、空いてますか？', ro:'seki, aitemasu ka?' },
+    { ko:'얼마나 기다려요?', ja:'どのくらい待ちますか？', ro:'dono kurai machimasu ka?' },
+    { ko:'금연석으로 주세요', ja:'禁煙席をお願いします', ro:'kin\'en-seki o onegai shimasu' },
+    { ko:'예약했어요 (김이에요)', ja:'予約しました。キムです', ro:'yoyaku shimashita. Kimu desu' },
+  ]},
+  { g:'주문', lines:[
+    { ko:'저기요! (부를 때)', ja:'すみません！', ro:'sumimasen!' },
+    { ko:'메뉴판 주세요', ja:'メニューをください', ro:'menyū o kudasai' },
+    { ko:'한국어 메뉴 있어요?', ja:'韓国語のメニューありますか？', ro:'kankokugo no menyū arimasu ka?' },
+    { ko:'추천 메뉴는 뭐예요?', ja:'おすすめは何ですか？', ro:'osusume wa nan desu ka?' },
+    { ko:'이거 주세요 (가리키며)', ja:'これをください', ro:'kore o kudasai' },
+    { ko:'이거랑 이거요', ja:'これとこれです', ro:'kore to kore desu' },
+    { ko:'같은 걸로 주세요', ja:'同じものをお願いします', ro:'onaji mono o onegai shimasu' },
+    { ko:'하나 더 주세요', ja:'もう一つください', ro:'mō hitotsu kudasai' },
+    { ko:'세트로 주세요', ja:'セットでお願いします', ro:'setto de onegai shimasu' },
+    { ko:'곱빼기로요', ja:'大盛りで', ro:'ōmori de' },
+    { ko:'생맥주 두 잔이요', ja:'生ビール2つ', ro:'nama-bīru futatsu' },
+    { ko:'주문할게요', ja:'注文お願いします', ro:'chūmon onegai shimasu' },
+  ]},
+  { g:'요청 · 질문', lines:[
+    { ko:'물 주세요', ja:'お水ください', ro:'o-mizu kudasai' },
+    { ko:'젓가락 주세요', ja:'お箸ください', ro:'o-hashi kudasai' },
+    { ko:'앞접시 주세요', ja:'取り皿ください', ro:'torizara kudasai' },
+    { ko:'안 맵게 해주세요', ja:'辛くしないでください', ro:'karaku shinai de kudasai' },
+    { ko:'덜 맵게요', ja:'控えめの辛さで', ro:'hikaeme no karasa de' },
+    { ko:'이거 뭐예요?', ja:'これは何ですか？', ro:'kore wa nan desu ka?' },
+    { ko:'맵나요?', ja:'辛いですか？', ro:'karai desu ka?' },
+    { ko:'리필 돼요?', ja:'おかわりできますか？', ro:'okawari dekimasu ka?' },
+    { ko:'포장돼요?', ja:'持ち帰りできますか？', ro:'mochikaeri dekimasu ka?' },
+    { ko:'화장실 어디예요?', ja:'トイレはどこですか？', ro:'toire wa doko desu ka?' },
+  ]},
+  { g:'계산 · 마무리', lines:[
+    { ko:'계산해 주세요', ja:'お会計お願いします', ro:'o-kaikei onegai shimasu' },
+    { ko:'카드 돼요?', ja:'カード使えますか？', ro:'kādo tsukaemasu ka?' },
+    { ko:'따로따로 계산돼요?', ja:'別々でお願いできますか？', ro:'betsubetsu de onegai dekimasu ka?' },
+    { ko:'영수증 주세요', ja:'領収書ください', ro:'ryōshūsho kudasai' },
+    { ko:'맛있었어요', ja:'おいしかったです', ro:'oishikatta desu' },
+    { ko:'잘 먹었습니다', ja:'ごちそうさまでした', ro:'gochisōsama deshita' },
+  ]},
+];
+// 메뉴 — 일본 음식점 (한국어 뜻 / 일본어 / 영어발음)
+const MENU = [
+  { cat:'🍣 스시 (寿司 · sushi)', items:[
+    { ko:'참치(붉은살)', ja:'まぐろ', ro:'maguro' },
+    { ko:'중뱃살', ja:'中トロ', ro:'chū-toro' },
+    { ko:'대뱃살', ja:'大トロ', ro:'ō-toro' },
+    { ko:'연어', ja:'サーモン', ro:'sāmon' },
+    { ko:'방어', ja:'ぶり / はまち', ro:'buri / hamachi' },
+    { ko:'광어', ja:'ひらめ', ro:'hirame' },
+    { ko:'도미', ja:'たい', ro:'tai' },
+    { ko:'전갱이', ja:'あじ', ro:'aji' },
+    { ko:'고등어', ja:'さば', ro:'saba' },
+    { ko:'새우', ja:'えび', ro:'ebi' },
+    { ko:'단새우', ja:'甘えび', ro:'ama-ebi' },
+    { ko:'오징어', ja:'いか', ro:'ika' },
+    { ko:'문어', ja:'たこ', ro:'tako' },
+    { ko:'가리비', ja:'ホタテ', ro:'hotate' },
+    { ko:'성게알', ja:'うに', ro:'uni' },
+    { ko:'연어알', ja:'いくら', ro:'ikura' },
+    { ko:'날치알', ja:'とびこ', ro:'tobiko' },
+    { ko:'장어(민물)', ja:'うなぎ', ro:'unagi' },
+    { ko:'붕장어', ja:'あなご', ro:'anago' },
+    { ko:'계란초밥', ja:'たまご', ro:'tamago' },
+    { ko:'모둠초밥', ja:'にぎり盛り合わせ', ro:'nigiri moriawase' },
+    { ko:'군함말이', ja:'軍艦巻き', ro:'gunkan-maki' },
+    { ko:'김초밥(마키)', ja:'巻き寿司', ro:'maki-zushi' },
+    { ko:'회전초밥', ja:'回転寿司', ro:'kaiten-zushi' },
+  ]},
+  { cat:'🍜 면 (麺 · noodles)', items:[
+    { ko:'라멘', ja:'ラーメン', ro:'rāmen' },
+    { ko:'돈코츠라멘(후쿠오카 명물)', ja:'豚骨ラーメン', ro:'tonkotsu rāmen' },
+    { ko:'하카타라멘', ja:'博多ラーメン', ro:'Hakata rāmen' },
+    { ko:'미소(된장)라멘', ja:'味噌ラーメン', ro:'miso rāmen' },
+    { ko:'쇼유(간장)라멘', ja:'醤油ラーメン', ro:'shōyu rāmen' },
+    { ko:'시오(소금)라멘', ja:'塩ラーメン', ro:'shio rāmen' },
+    { ko:'면 추가/사리(하카타)', ja:'替え玉', ro:'kaedama' },
+    { ko:'츠케멘(찍먹면)', ja:'つけ麺', ro:'tsukemen' },
+    { ko:'우동', ja:'うどん', ro:'udon' },
+    { ko:'붓카케우동(간장국물)', ja:'ぶっかけうどん', ro:'bukkake udon' },
+    { ko:'카레우동', ja:'カレーうどん', ro:'karē udon' },
+    { ko:'소바(메밀)', ja:'そば', ro:'soba' },
+    { ko:'자루소바(냉메밀)', ja:'ざるそば', ro:'zaru soba' },
+    { ko:'짬뽕(나가사키)', ja:'ちゃんぽん', ro:'chanpon' },
+    { ko:'냉라멘', ja:'冷やし中華', ro:'hiyashi chūka' },
+  ]},
+  { cat:'🍚 덮밥 (丼 · donburi)', items:[
+    { ko:'소고기덮밥', ja:'牛丼', ro:'gyūdon' },
+    { ko:'돈까스덮밥', ja:'カツ丼', ro:'katsudon' },
+    { ko:'튀김덮밥', ja:'天丼', ro:'tendon' },
+    { ko:'닭·계란덮밥', ja:'親子丼', ro:'oyakodon' },
+    { ko:'회덮밥', ja:'海鮮丼', ro:'kaisendon' },
+    { ko:'참치덮밥', ja:'まぐろ丼', ro:'maguro-don' },
+    { ko:'연어알덮밥', ja:'いくら丼', ro:'ikura-don' },
+    { ko:'장어덮밥', ja:'うな丼 / うな重', ro:'unadon / unajū' },
+    { ko:'돼지고기덮밥', ja:'豚丼', ro:'butadon' },
+    { ko:'게살볶음밥덮밥', ja:'天津飯', ro:'tenshinhan' },
+  ]},
+  { cat:'🍤 튀김 (揚げ物 · fried)', items:[
+    { ko:'튀김(텐푸라)', ja:'天ぷら', ro:'tenpura' },
+    { ko:'새우튀김', ja:'えび天', ro:'ebi-ten' },
+    { ko:'닭튀김(가라아게)', ja:'から揚げ', ro:'kara-age' },
+    { ko:'돈까스', ja:'とんかつ', ro:'tonkatsu' },
+    { ko:'등심돈까스', ja:'ロースかつ', ro:'rōsu-katsu' },
+    { ko:'안심돈까스', ja:'ヒレかつ', ro:'hire-katsu' },
+    { ko:'다진고기튀김', ja:'メンチカツ', ro:'menchi-katsu' },
+    { ko:'고로케', ja:'コロッケ', ro:'korokke' },
+    { ko:'새우프라이', ja:'エビフライ', ro:'ebi-furai' },
+    { ko:'굴튀김', ja:'カキフライ', ro:'kaki-furai' },
+    { ko:'튀김 모둠', ja:'天ぷら盛り合わせ', ro:'tenpura moriawase' },
+  ]},
+  { cat:'🍢 꼬치 (串 · skewers)', items:[
+    { ko:'닭꼬치(야키토리)', ja:'焼き鳥', ro:'yakitori' },
+    { ko:'닭다리살', ja:'もも', ro:'momo' },
+    { ko:'파닭(대파+닭)', ja:'ねぎま', ro:'negima' },
+    { ko:'닭완자', ja:'つくね', ro:'tsukune' },
+    { ko:'닭껍질', ja:'皮', ro:'kawa' },
+    { ko:'닭날개', ja:'手羽先', ro:'tebasaki' },
+    { ko:'닭간', ja:'レバー', ro:'rebā' },
+    { ko:'모래집(근위)', ja:'砂肝', ro:'sunagimo' },
+    { ko:'삼겹살꼬치', ja:'豚バラ', ro:'buta-bara' },
+    { ko:'꼬치튀김(쿠시카츠)', ja:'串カツ', ro:'kushikatsu' },
+    { ko:'소금맛 / 양념맛', ja:'塩 / タレ', ro:'shio / tare' },
+  ]},
+  { cat:'🍳 철판 (鉄板焼き · teppan)', items:[
+    { ko:'오코노미야키(부침)', ja:'お好み焼き', ro:'okonomiyaki' },
+    { ko:'몬자야키', ja:'もんじゃ焼き', ro:'monja-yaki' },
+    { ko:'야키소바(볶음면)', ja:'焼きそば', ro:'yakisoba' },
+    { ko:'철판스테이크', ja:'鉄板ステーキ', ro:'teppan sutēki' },
+    { ko:'군만두', ja:'餃子', ro:'gyōza' },
+    { ko:'철판볶음밥', ja:'焼き飯', ro:'yaki-meshi' },
+    { ko:'타코야키(문어볼)', ja:'たこ焼き', ro:'takoyaki' },
+    { ko:'히로시마식 부침', ja:'広島焼き', ro:'Hiroshima-yaki' },
+  ]},
+  { cat:'🍱 정식 (定食 · set meal)', items:[
+    { ko:'정식(세트=밥+국+반찬)', ja:'定食', ro:'teishoku' },
+    { ko:'회정식', ja:'刺身定食', ro:'sashimi teishoku' },
+    { ko:'생선구이정식', ja:'焼き魚定食', ro:'yakizakana teishoku' },
+    { ko:'고등어정식', ja:'さば定食', ro:'saba teishoku' },
+    { ko:'튀김정식', ja:'天ぷら定食', ro:'tenpura teishoku' },
+    { ko:'돈까스정식', ja:'とんかつ定食', ro:'tonkatsu teishoku' },
+    { ko:'닭튀김정식', ja:'から揚げ定食', ro:'kara-age teishoku' },
+    { ko:'함박스테이크정식', ja:'ハンバーグ定食', ro:'hanbāgu teishoku' },
+    { ko:'돼지생강구이정식', ja:'豚の生姜焼き定食', ro:'buta no shōgayaki teishoku' },
+    { ko:'된장국', ja:'味噌汁', ro:'miso-shiru' },
+    { ko:'절임반찬', ja:'漬物', ro:'tsukemono' },
+    { ko:'밥 곱빼기', ja:'ライス大盛り', ro:'raisu ōmori' },
+  ]},
+];
+let _langSub = 'conv';
+function renderLang(){
+  const conv = document.getElementById('langConv');
+  const menu = document.getElementById('langMenu');
+  if (conv && !conv.dataset.done){
+    conv.innerHTML = CONV.map(g => `<div class="lg-group"><h3 class="lg-h">${escapeAttr(g.g)}</h3>` +
+      g.lines.map(l => `<div class="lg-row"><div class="lg-ko">${escapeAttr(l.ko)}</div><div class="lg-jp"><span class="lg-ja">${escapeAttr(l.ja)}</span><span class="lg-ro">${escapeAttr(l.ro)}</span></div></div>`).join('') +
+      `</div>`).join('');
+    conv.dataset.done = '1';
+  }
+  if (menu && !menu.dataset.done){
+    menu.innerHTML = MENU.map(c => `<div class="lg-group"><h3 class="lg-h">${escapeAttr(c.cat)}</h3>` +
+      c.items.map(it => `<div class="lg-row"><div class="lg-ko">${escapeAttr(it.ko)}</div><div class="lg-jp"><span class="lg-ja">${escapeAttr(it.ja)}</span><span class="lg-ro">${escapeAttr(it.ro)}</span></div></div>`).join('') +
+      `</div>`).join('');
+    menu.dataset.done = '1';
+  }
+  conv.classList.toggle('hidden', _langSub !== 'conv');
+  menu.classList.toggle('hidden', _langSub !== 'menu');
+  document.querySelectorAll('.lang-subtab').forEach(b => {
+    b.classList.toggle('active', b.dataset.sub === _langSub);
+    b.onclick = () => { _langSub = b.dataset.sub; renderLang(); };
+  });
 }
 
 // ── 상세(입력) 탭 ───────────────────────────────

@@ -36,6 +36,7 @@
   <button class="top-tab"        role="tab" data-tab="map"    aria-selected="false">지도</button>
   <button class="top-tab"        role="tab" data-tab="route"  aria-selected="false">경로</button>
   <button class="top-tab"        role="tab" data-tab="detail" aria-selected="false">상세</button>
+  <button class="top-tab"        role="tab" data-tab="lang"   aria-selected="false">언어</button>
 </nav>
 
 <nav class="mini-tabs" id="miniTabs" role="tablist" aria-label="일자 선택">
@@ -63,6 +64,16 @@
   <section class="tab-panel hidden" id="tabDetail" data-tab="detail">
     <div class="detail-list" id="detailList"></div>
     <button class="fab-save" id="btnSave" type="button">저장</button>
+  </section>
+
+  <!-- 언어 탭 (회화 / 메뉴) -->
+  <section class="tab-panel hidden" id="tabLang" data-tab="lang">
+    <nav class="lang-subtabs" id="langSubtabs">
+      <button class="lang-subtab active" data-sub="conv">🗣️ 회화</button>
+      <button class="lang-subtab" data-sub="menu">🍱 메뉴</button>
+    </nav>
+    <div class="lang-body" id="langConv"></div>
+    <div class="lang-body hidden" id="langMenu"></div>
   </section>
 </main>
 
