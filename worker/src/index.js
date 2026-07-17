@@ -6,7 +6,8 @@
 // Secret: EDIT_TOKEN
 
 const KEY = 'trip-data';
-const MAX_BYTES = 8 * 1024 * 1024;   // 8MB
+const MAX_BYTES = 8 * 1024 * 1024;        // 8MB (KV 데이터)
+const MAX_ATT_BYTES = 20 * 1024 * 1024;   // 20MB (R2 첨부 1개)
 
 const ALLOWED_ORIGINS = [
   'https://junyoungcha83.github.io',
@@ -21,7 +22,7 @@ function corsHeaders(req) {
   const allow = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
     'Access-Control-Allow-Origin': allow,
-    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Edit-Token',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
@@ -74,6 +75,73 @@ export default {
         }
         await env.TRIP.put(KEY, body);
         return json({ ok: true, bytes: body.length }, 200, cors);
+      }
+
+      return json({ error: 'method_not_allowed' }, 405, cors);
+    }
+
+    // ── 첨부파일 (R2) : /api/attach(목록) · /api/attach/:id ──
+    if (url.pathname === '/api/attach' || url.pathname.startsWith('/api/attach/')) {
+      const id = url.pathname === '/api/attach' ? '' : decodeURIComponent(url.pathname.slice('/api/attach/'.length));
+
+      // 목록(공개) — blob 없이 메타만
+      if (req.method === 'GET' && !id) {
+        const list = await env.ATT.list({ prefix: 'att/', include: ['customMetadata'] });
+        const items = (list.objects || []).map(o => {
+          const m = o.customMetadata || {};
+          return {
+            id: o.key.slice(4),
+            entryId: m.entryId || '',
+            name: m.name ? decodeURIComponent(m.name) : '',
+            type: m.type || (o.httpMetadata && o.httpMetadata.contentType) || '',
+            size: o.size,
+            created_at: m.created_at || '',
+          };
+        });
+        return json({ items }, 200, cors);
+      }
+
+      // 개별 다운로드(공개)
+      if (req.method === 'GET' && id) {
+        const obj = await env.ATT.get('att/' + id);
+        if (!obj) return new Response('Not Found', { status: 404, headers: cors });
+        const m = obj.customMetadata || {};
+        const name = m.name ? decodeURIComponent(m.name) : id;
+        return new Response(obj.body, {
+          headers: {
+            ...cors,
+            'Content-Type': (obj.httpMetadata && obj.httpMetadata.contentType) || m.type || 'application/octet-stream',
+            'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(name)}`,
+            'Cache-Control': 'public, max-age=604800',
+          },
+        });
+      }
+
+      // 쓰기(인증)
+      const token = req.headers.get('X-Edit-Token') || '';
+      if (!env.EDIT_TOKEN || token !== env.EDIT_TOKEN) return json({ error: 'unauthorized' }, 401, cors);
+
+      if (req.method === 'PUT' && id) {
+        const buf = await req.arrayBuffer();
+        if (buf.byteLength > MAX_ATT_BYTES) {
+          return json({ error: 'too_large', limit: MAX_ATT_BYTES, size: buf.byteLength }, 413, cors);
+        }
+        const type = req.headers.get('Content-Type') || 'application/octet-stream';
+        await env.ATT.put('att/' + id, buf, {
+          httpMetadata: { contentType: type },
+          customMetadata: {
+            entryId: url.searchParams.get('entryId') || '',
+            name: encodeURIComponent(url.searchParams.get('name') || ''),
+            type,
+            created_at: new Date().toISOString(),
+          },
+        });
+        return json({ ok: true, id, size: buf.byteLength }, 200, cors);
+      }
+
+      if (req.method === 'DELETE' && id) {
+        await env.ATT.delete('att/' + id);
+        return json({ ok: true }, 200, cors);
       }
 
       return json({ error: 'method_not_allowed' }, 405, cors);

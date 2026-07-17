@@ -10,3 +10,8 @@ id = "0d212688f4704eff8fde0ab4eb19644b"
 
 # 편집 비밀번호는 secret 으로:
 #   npx wrangler secret put EDIT_TOKEN
+
+# R2 버킷 — 첨부파일(바우처·티켓 PDF·이미지) 백업 저장
+[[r2_buckets]]
+binding = "ATT"
+bucket_name = "fukuoka-beppu-trip-attach"

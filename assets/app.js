@@ -64,11 +64,8 @@ let activeDay = 'all';    // 'all' | 'd1'... (지도·경로 필터)
 // ── 유틸 ─────────────────────────────────────────
 function nowIso() { return new Date().toISOString(); }
 function nextId() {
-  const max = state.entries.reduce((m, e) => {
-    const n = parseInt(String(e.id || '').replace(/\D/g, '')) || 0;
-    return Math.max(m, n);
-  }, 0);
-  return 'e' + (max + 1);
+  // 충돌 없는 고유 ID(멀티기기 동기화·삭제 후에도 안 겹침). 기존 e1..eN 도 그대로 유효.
+  return 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 function escapeAttr(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
@@ -597,7 +594,7 @@ function makeRowCard(entry, dayId) {
       <button type="button" class="btn-geo" title="장소명으로 좌표 자동 찾기">📍 자동</button>
     </div>
     <div class="row-row att-row">
-      <label class="btn-att" title="바우처·티켓 등 첨부 (이 기기에 저장)">📎 첨부<input type="file" class="f-att" accept="image/*,application/pdf" multiple hidden></label>
+      <label class="btn-att" title="바우처·티켓 등 첨부 (클라우드 백업)">📎 첨부<input type="file" class="f-att" accept="image/*,application/pdf" multiple hidden></label>
       <div class="att-list"></div>
     </div>
   `;
@@ -655,7 +652,7 @@ function makeRowCard(entry, dayId) {
     if (!id) { card.remove(); return; }
     if (!confirm('이 항목을 삭제할까요?')) return;
     state.entries = state.entries.filter(x => x.id !== id);
-    idbByEntry(id).then(atts => atts.forEach(a => idbDel(a.id))).catch(() => {});  // 첨부도 정리
+    attByEntry(id).forEach(a => deleteAttachment(a.id));  // 첨부도 클라우드/캐시에서 정리
     saveLocal();
     renderDetail();
   };
@@ -980,6 +977,25 @@ function idbByEntry(entryId) { return idb().then(db => new Promise((res, rej) =>
 function idbAll() { return idb().then(db => new Promise((res, rej) => { const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).getAll(); req.onsuccess = () => res(req.result || []); req.onerror = () => rej(req.error); })); }
 function idbDel(id) { return idb().then(db => new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); })); }
 
+// ── R2 첨부: 서버 정본 인덱스 + 오프라인 캐시(IDB) ──
+const ATT_BASE = API_BASE + '/api/attach';
+let ATT_INDEX = [];   // [{id, entryId, name, type, size, created_at}] — 서버 목록 사본
+function attUrl(id) { return `${ATT_BASE}/${encodeURIComponent(id)}`; }
+async function loadAttIndex() {
+  try {
+    const res = await fetch(ATT_BASE, { cache: 'no-store' });
+    if (res.ok) { const j = await res.json(); if (Array.isArray(j.items)) ATT_INDEX = j.items; }
+  } catch (e) {}
+  return ATT_INDEX;
+}
+function attByEntry(entryId) { return ATT_INDEX.filter(a => a.entryId === entryId); }
+async function deleteAttachment(id) {
+  const token = getEditToken();
+  try { if (token) await fetch(attUrl(id), { method: 'DELETE', headers: { 'X-Edit-Token': token } }); } catch (e) {}
+  ATT_INDEX = ATT_INDEX.filter(a => a.id !== id);
+  idbDel(id).catch(() => {});
+}
+
 function attIcon(type) {
   if ((type || '').startsWith('image/')) return '🖼️';
   if ((type || '').includes('pdf')) return '📄';
@@ -987,13 +1003,35 @@ function attIcon(type) {
 }
 async function addAttachmentFile(entryId, file) {
   if (file.size > 20 * 1024 * 1024) { alert(`'${file.name}' 이(가) 20MB를 넘어 저장하지 않습니다.`); return; }
+  const token = getEditToken();
+  if (!token) { alert('편집 모드에서만 첨부할 수 있습니다.'); return; }
   const id = 'att_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  await idbAdd({ id, entryId, name: file.name || '첨부', type: file.type || '', size: file.size || 0, blob: file, created_at: nowIso() });
+  const type = file.type || 'application/octet-stream';
+  const qs = `?entryId=${encodeURIComponent(entryId)}&name=${encodeURIComponent(file.name || '첨부')}`;
+  try {
+    const res = await fetch(attUrl(id) + qs, {
+      method: 'PUT',
+      headers: { 'Content-Type': type, 'X-Edit-Token': token },
+      body: file,
+    });
+    if (!res.ok) {
+      if (res.status === 413) alert(`'${file.name}' 업로드 실패 — 용량 초과`);
+      else if (res.status === 401) alert('편집 비밀번호가 필요합니다.');
+      else alert(`'${file.name}' 업로드 실패 (${res.status})`);
+      return;
+    }
+    const rec = { id, entryId, name: file.name || '첨부', type, size: file.size || 0, created_at: nowIso() };
+    ATT_INDEX.push(rec);
+    // 오프라인 캐시(있으면 뷰어가 빨라짐/오프라인 열람 가능)
+    idbAdd({ id, entryId, name: rec.name, type, size: rec.size, blob: file, created_at: rec.created_at }).catch(() => {});
+  } catch (e) {
+    alert(`'${file.name}' 업로드 실패 — 네트워크 오류`);
+  }
 }
 async function refreshAttList(card, entryId) {
   const list = card.querySelector('.att-list');
   if (!list) return;
-  const atts = entryId ? await idbByEntry(entryId) : [];
+  const atts = entryId ? attByEntry(entryId) : [];
   list.innerHTML = atts.map(a =>
     `<span class="att-chip" data-id="${a.id}"><span class="att-name">${attIcon(a.type)} ${escapeAttr(a.name)}</span><button class="att-del" title="삭제" aria-label="삭제">×</button></span>`
   ).join('');
@@ -1002,7 +1040,7 @@ async function refreshAttList(card, entryId) {
     ch.querySelector('.att-del').onclick = async e => {
       e.stopPropagation();
       if (!confirm('첨부를 삭제할까요?')) return;
-      await idbDel(ch.dataset.id);
+      await deleteAttachment(ch.dataset.id);
       refreshAttList(card, entryId);
     };
   });
@@ -1022,25 +1060,28 @@ function ensureAttViewer() {
   return _attViewer;
 }
 async function openAttachment(id) {
-  const rec = await idbGet(id);
-  if (!rec) { alert('첨부를 찾을 수 없습니다 (이 기기에 없음).'); return; }
-  const url = URL.createObjectURL(rec.blob);
+  const meta = ATT_INDEX.find(a => a.id === id) || {};
+  const type = meta.type || '';
+  const name = meta.name || id;
+  // 오프라인 캐시(IDB blob) 있으면 우선, 없으면 R2 URL 직접
+  let url = attUrl(id), objUrl = null;
+  try { const rec = await idbGet(id); if (rec && rec.blob) { objUrl = URL.createObjectURL(rec.blob); url = objUrl; } } catch (e) {}
   const v = ensureAttViewer();
   const body = v.querySelector('.av-body');
-  if ((rec.type || '').startsWith('image/')) {
+  if ((type || '').startsWith('image/')) {
     // 이미지는 인앱 표시
-    body.innerHTML = `<img src="${url}" alt="${escapeAttr(rec.name)}">`;
+    body.innerHTML = `<img src="${url}" alt="${escapeAttr(name)}">`;
   } else {
     // PDF 등은 인앱 iframe 미지원(모바일) → 카드 + '열기'(새 탭/뷰어로 열기)
     body.innerHTML =
       `<div class="av-file">` +
-        `<div class="av-fileicon">${attIcon(rec.type)}</div>` +
-        `<div class="av-filename">${escapeAttr(rec.name)}</div>` +
+        `<div class="av-fileicon">${attIcon(type)}</div>` +
+        `<div class="av-filename">${escapeAttr(name)}</div>` +
         `<a class="av-open" href="${url}" target="_blank" rel="noopener">열기</a>` +
       `</div>`;
   }
   if (v._url) URL.revokeObjectURL(v._url);
-  v._url = url;
+  v._url = objUrl;   // R2 URL 은 revoke 대상 아님(캐시 blob 만)
   v.classList.remove('hidden');
   openModal(closeAttViewer);   // 안드로이드 뒤로가기 = 닫기
 }
@@ -1053,8 +1094,7 @@ function closeAttViewer() {
 
 // 경로 탭 — 일자별 첨부파일 목록 (스네이크 하단)
 async function renderRouteAttachments(box, days) {
-  let all = [];
-  try { all = await idbAll(); } catch (e) {}
+  const all = ATT_INDEX;
   const byDay = {};
   for (const a of all) {
     const e = findEntry(a.entryId);
@@ -1070,20 +1110,15 @@ async function renderRouteAttachments(box, days) {
     html += `<section class="ra-day"><h3 class="ra-title" style="--c:${dayColor(ci)}">${escapeAttr(day.label)} 첨부파일</h3><div class="ra-grid">`;
     for (const { a, e } of items) {
       const isImg = (a.type || '').startsWith('image/');
+      const thumb = isImg ? ` style="background-image:url(${attUrl(a.id)})"` : '';
       html += `<button class="ra-item" data-id="${a.id}">` +
-        `<span class="ra-thumb${isImg ? '' : ' ra-file'}">${isImg ? '' : attIcon(a.type)}</span>` +
+        `<span class="ra-thumb${isImg ? '' : ' ra-file'}"${thumb}>${isImg ? '' : attIcon(a.type)}</span>` +
         `<span class="ra-cap">${escapeAttr(e.place || a.name)}</span></button>`;
     }
     html += `</div></section>`;
   }
   box.innerHTML = html;
   box.querySelectorAll('.ra-item').forEach(it => { it.onclick = () => openAttachment(it.dataset.id); });
-  // 이미지 썸네일 채우기
-  for (const a of all) {
-    if (!(a.type || '').startsWith('image/')) continue;
-    const el = box.querySelector(`.ra-item[data-id="${a.id}"] .ra-thumb`);
-    if (el) el.style.backgroundImage = `url(${URL.createObjectURL(a.blob)})`;
-  }
 }
 
 function ensureEntry(card, dayId) {
@@ -1477,6 +1512,7 @@ async function bootstrap() {
 
   state = await loadInitial();
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  await loadAttIndex();   // 첨부 목록(R2 정본) 로드
   updateEditUI();
   renderMiniTabs();
   render();
