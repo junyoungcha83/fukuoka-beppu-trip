@@ -1330,19 +1330,30 @@ function drawMarkers() {
     else bounds.extend([e.lng, e.lat]);
   }
 
-  // 시간순 연속 경로선 — 일자 구분 없이 전체를 하나의 선으로 (일자→시작시간 순)
+  // 일자별 경로선 — 각 날은 '그날 묵는 숙소(직전에 체크인한 곳)'에서 출발하도록 그림.
+  // (예: 둘쨋날 리치몬드호텔→팀랩→돈키호테, 넷쨋날 그랜드호텔→아프리카사파리→지옥온천)
   const dayIdx = id => DAYS.findIndex(d => d.id === id);
-  const ordered = state.entries
-    .filter(e => typeof e.lat === 'number' && typeof e.lng === 'number' &&
-      (activeDay === 'all' || e.day === activeDay))
+  const chron = state.entries
+    .filter(e => typeof e.lat === 'number' && typeof e.lng === 'number')
     .slice()
     .sort((a, b) => (dayIdx(a.day) - dayIdx(b.day)) ||
       (a.start || '99:99').localeCompare(b.start || '99:99'));
-  const feats = ordered.length >= 2 ? [{
-    type: 'Feature',
-    properties: { color: ROUTE_LINE_COLOR },
-    geometry: { type: 'LineString', coordinates: ordered.map(e => [e.lng, e.lat]) },
-  }] : [];
+  const drawDays = activeDay === 'all' ? DAYS : DAYS.filter(d => d.id === activeDay);
+  const feats = [];
+  for (const day of drawDays) {
+    const stops = chron.filter(e => e.day === day.id);
+    if (!stops.length) continue;
+    // 그날 첫 일정 직전까지 체크인해 둔(=전날 밤 묵은) 숙소를 출발점으로 앞에 붙임
+    const gi = chron.indexOf(stops[0]);
+    let hotel = null;
+    for (let i = gi - 1; i >= 0; i--) { if (chron[i].kind === 'hotel') { hotel = chron[i]; break; } }
+    const seq = (hotel && hotel.id !== stops[0].id) ? [hotel, ...stops] : stops;
+    if (seq.length >= 2) feats.push({
+      type: 'Feature',
+      properties: { color: dayColor(dayIdx(day.id)) },
+      geometry: { type: 'LineString', coordinates: seq.map(e => [e.lng, e.lat]) },
+    });
+  }
   const src = _map.getSource('trip-lines');
   if (src) src.setData({ type: 'FeatureCollection', features: feats });
 
