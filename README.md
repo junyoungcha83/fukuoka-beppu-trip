@@ -29,7 +29,7 @@ fukuoka-beppu-trip/
 ├── sw.js
 ├── assets/{app.js, app.css, icon.svg, icon-maskable.svg}
 ├── data/default.json        # 첫 실행 fallback (샘플 3일 일정)
-└── worker/                  # Cloudflare Worker — 데이터 동기화 API
+└── api/                     # Cloudflare Worker — 데이터 동기화 API
     ├── src/index.js
     ├── package.json
     └── wrangler.toml
@@ -85,7 +85,7 @@ open http://localhost:8000/
 ## Worker 배포
 
 ```sh
-cd worker
+cd api
 npx wrangler kv namespace create TRIP
 # 출력 id 를 wrangler.toml 의 REPLACE_WITH_KV_ID 에 채워넣기
 npx wrangler secret put EDIT_TOKEN
@@ -94,7 +94,7 @@ npx wrangler deploy
 ```
 
 배포 후 출력된 workers.dev URL 을 `assets/app.js` 의 `API_BASE` 에 반영.
-(GitHub Pages 등 배포 도메인은 `worker/src/index.js` 의 `ALLOWED_ORIGINS` 에 추가.)
+(GitHub Pages 등 배포 도메인은 `api/src/index.js` 의 `ALLOWED_ORIGINS` 에 추가.)
 
 ## 편집 권한
 
