@@ -380,7 +380,7 @@ function render() {
 // 회화 — 음식점 주문 (한국어 / 일본어 / 한글발음 / 로마자)
 const CONV = [
   { g:'입장 · 자리', lines:[
-    { ko:'두 명이요', ja:'2人です', kr:'후타리데스', ro:'futari desu' },
+    { ko:'네 명이요', ja:'4人です', kr:'요닌데스', ro:'yonin desu' },
     { ko:'혼자예요', ja:'1人です', kr:'히토리데스', ro:'hitori desu' },
     { ko:'자리 있어요?', ja:'席、空いてますか？', kr:'세키, 아이테마스카?', ro:'seki, aitemasu ka?' },
     { ko:'얼마나 기다려요?', ja:'どのくらい待ちますか？', kr:'도노쿠라이 마치마스카?', ro:'dono kurai machimasu ka?' },
@@ -671,11 +671,8 @@ function drawFoodMarkers() {
     el.className = 'mt-marker';
     el.innerHTML = `<div class="mt-pin food-pin"><span>🍜</span></div>` +
       `<div class="mt-label"><span>${escapeAttr(r.name)}</span></div>`;
-    const popup = new maptilersdk.Popup({ offset: 28, closeButton: false }).setHTML(
-      `<b>${escapeAttr((r.type ? '[' + r.type + '] ' : '') + r.name)}</b>` +
-      (r.food ? `<br/>🍽 ${escapeAttr(r.food)}` : '') +
-      (r.review ? `<br/>${escapeAttr(r.review)}` : '')
-    );
+    const popup = new maptilersdk.Popup({ offset: 28, closeButton: false })
+      .setHTML(`<b>${escapeAttr(r.name)}</b>`);
     const mk = new maptilersdk.Marker({ element: el, anchor: 'bottom' }).setLngLat([r.lng, r.lat]).setPopup(popup).addTo(_foodMap);
     _foodMarkers.push(mk);
     if (!bounds) bounds = new maptilersdk.LngLatBounds([r.lng, r.lat], [r.lng, r.lat]);
