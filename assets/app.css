@@ -612,6 +612,8 @@ body.read-only .f-icon { pointer-events: none; background: #f8fafc; }
 .fml-chip { flex: none; white-space: nowrap; background: #e0f2fe; color: var(--primary-dark); border: 1px solid var(--border);
   border-radius: 999px; padding: 6px 12px; font-size: .82rem; font-weight: 700; cursor: pointer; }
 .fml-chip.fml-noloc { background: #fef3c7; color: #92400e; }
+.fml-group { flex: none; align-self: center; white-space: nowrap; font-size: .72rem; font-weight: 800; color: var(--muted); padding: 0 2px 0 6px; }
+.fml-group:first-child { padding-left: 2px; }
 .food-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .food-add { background: var(--primary); color: #fff; border: none; border-radius: 10px; padding: 9px 14px; font-size: .9rem; font-weight: 700; cursor: pointer; }
 .food-note { font-size: .72rem; color: var(--muted); flex: 1 1 180px; line-height: 1.4; }

@@ -557,7 +557,16 @@ function renderLang(){
 // ── 맛집 탭: 리스트 / 지도 ───────────────────────────
 let _foodSub = 'list';
 let _foodMap = null, _foodMarkers = [], _foodMapReady = false;
+let _foodMarkerById = {};   // 맛집 id → 지도 마커(칩 클릭 시 팝업 열기용)
 let _pickCoordFor = null;   // 좌표 찍기 대상 맛집 id
+// 지역 구분(후쿠오카/벳푸) — 좌표(경도) 우선, 없으면 지역·접근 텍스트
+function foodRegion(r) {
+  if (typeof r.lng === 'number') return r.lng > 131.0 ? '벳푸' : '후쿠오카';
+  const a = (r.area || '') + (r.near || '');
+  if (/벳푸|別府|beppu/i.test(a)) return '벳푸';
+  if (/후쿠오카|하카타|텐진|福岡|博多|天神|fukuoka|hakata/i.test(a)) return '후쿠오카';
+  return '기타';
+}
 // 숙소(호텔) — 지도에 빨간 원 포인트로 표시(참고용 고정)
 const FOOD_HOTELS = [
   { name: '리치몬드 호텔 후쿠오카 텐진', lat: 33.58662, lng: 130.40193 },
@@ -692,14 +701,22 @@ function renderFoodNames() {
   const list = state.restaurants || [];
   if (!list.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
   el.classList.remove('hidden');
-  el.innerHTML = list.map(r => {
+  const chip = r => {
     const hasLoc = (typeof r.lat === 'number' && typeof r.lng === 'number');
     return `<button class="fml-chip${hasLoc ? '' : ' fml-noloc'}" data-id="${escapeAttr(r.id)}" type="button">${escapeAttr(r.name)}</button>`;
-  }).join('');
+  };
+  const order = ['후쿠오카', '벳푸', '기타'];
+  const groups = {};
+  list.forEach(r => { const g = foodRegion(r); (groups[g] = groups[g] || []).push(r); });
+  el.innerHTML = order.filter(g => groups[g] && groups[g].length)
+    .map(g => `<span class="fml-group">${g}</span>` + groups[g].map(chip).join(''))
+    .join('');
   el.querySelectorAll('.fml-chip').forEach(b => b.onclick = () => {
     const r = (state.restaurants || []).find(x => x.id === b.dataset.id);
     if (r && typeof r.lat === 'number' && typeof r.lng === 'number' && _foodMap) {
       _foodMap.flyTo({ center: [r.lng, r.lat], zoom: 15 });
+      const mk = _foodMarkerById[r.id];
+      if (mk && mk.getPopup) { const p = mk.getPopup(); if (p && !p.isOpen()) mk.togglePopup(); }
     } else {
       alert('아직 위치가 없어요. 리스트에서 "🗺️ 지도에서 찍기"로 지정하세요.');
     }
@@ -709,6 +726,7 @@ function drawFoodMarkers() {
   if (!_foodMap) return;
   _foodMarkers.forEach(m => m.remove());
   _foodMarkers = [];
+  _foodMarkerById = {};
   const pts = (state.restaurants || []).filter(r => typeof r.lat === 'number' && typeof r.lng === 'number');
   let bounds = null;
   for (const r of pts) {
@@ -720,6 +738,7 @@ function drawFoodMarkers() {
       .setHTML(`<b>${escapeAttr(r.name)}</b>`);
     const mk = new maptilersdk.Marker({ element: el, anchor: 'bottom' }).setLngLat([r.lng, r.lat]).setPopup(popup).addTo(_foodMap);
     _foodMarkers.push(mk);
+    _foodMarkerById[r.id] = mk;
     if (!bounds) bounds = new maptilersdk.LngLatBounds([r.lng, r.lat], [r.lng, r.lat]);
     else bounds.extend([r.lng, r.lat]);
   }
