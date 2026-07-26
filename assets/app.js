@@ -557,6 +557,7 @@ function renderLang(){
 // ── 맛집 탭: 리스트 / 지도 ───────────────────────────
 let _foodSub = 'list';
 let _foodMap = null, _foodMarkers = [], _foodMapReady = false;
+let _pickCoordFor = null;   // 좌표 찍기 대상 맛집 id
 // 숙소(호텔) — 지도에 빨간 원 포인트로 표시(참고용 고정)
 const FOOD_HOTELS = [
   { name: '리치몬드 호텔 후쿠오카 텐진', lat: 33.58662, lng: 130.40193 },
@@ -594,7 +595,7 @@ function renderFoodList() {
         ${(typeof r.lat === 'number' && typeof r.lng === 'number')
           ? `<span class="food-coord-val">📌 ${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</span>`
           : `<span class="food-coord-none">📌 위치 미지정</span>`}
-        <button class="food-coord-btn" data-id="${escapeAttr(r.id)}" type="button">좌표 찍기</button>
+        <button class="food-coord-btn" data-id="${escapeAttr(r.id)}" type="button">🗺️ 지도에서 찍기</button>
       </div>
     </div>`;
   }).join('');
@@ -607,20 +608,41 @@ function renderFoodList() {
   const add = document.getElementById('foodAdd');
   if (add) add.onclick = addRestaurant;
   box.querySelectorAll('.food-del').forEach(b => b.onclick = () => deleteRestaurant(b.dataset.id));
-  box.querySelectorAll('.food-coord-btn').forEach(b => b.onclick = () => setRestaurantCoords(b.dataset.id));
+  box.querySelectorAll('.food-coord-btn').forEach(b => b.onclick = () => startPickCoord(b.dataset.id));
 }
-function setRestaurantCoords(id) {
+// 지도 탭으로 좌표 찍기: 리스트에서 대상 선택 → 지도로 이동 → 지도를 탭하면 그 위치로 지정
+function startPickCoord(id) {
   const r = (state.restaurants || []).find(x => x.id === id);
   if (!r) return;
-  const cur = (typeof r.lat === 'number' && typeof r.lng === 'number') ? `${r.lat}, ${r.lng}` : '';
-  const v = prompt('위도, 경도를 입력하세요 (예: 33.58662, 130.40193)\n· 지도앱에서 좌표를 복사해 붙여넣으면 돼요.\n· 비우고 확인하면 위치가 삭제됩니다.', cur);
-  if (v === null) return;
-  const s = v.trim();
-  if (!s) { r.lat = null; r.lng = null; saveLocal(); renderFood(); return; }
-  const nums = s.split(/[,\s]+/).map(x => parseFloat(x)).filter(n => !isNaN(n));
-  if (nums.length < 2) { alert('형식이 올바르지 않아요. 예: 33.58662, 130.40193'); return; }
-  r.lat = nums[0]; r.lng = nums[1];
-  saveLocal(); renderFood();
+  _pickCoordFor = id;
+  _foodSub = 'map';
+  renderFood();
+}
+function updatePickBanner() {
+  const b = document.getElementById('foodPickBanner');
+  if (!b) return;
+  if (_pickCoordFor) {
+    const r = (state.restaurants || []).find(x => x.id === _pickCoordFor);
+    b.classList.remove('hidden');
+    b.innerHTML = `📍 <b>${escapeAttr(r ? r.name : '')}</b> 위치를 지도에서 탭하세요` +
+      `<button id="pickCancel" type="button">취소</button>`;
+    const c = document.getElementById('pickCancel');
+    if (c) c.onclick = () => { _pickCoordFor = null; updatePickBanner(); };
+  } else {
+    b.classList.add('hidden');
+    b.innerHTML = '';
+  }
+  if (_foodMap && _foodMap.getCanvas) {
+    try { _foodMap.getCanvas().style.cursor = _pickCoordFor ? 'crosshair' : ''; } catch (e) {}
+  }
+}
+function onFoodMapClick(e) {
+  if (!_pickCoordFor || !e || !e.lngLat) return;
+  const r = (state.restaurants || []).find(x => x.id === _pickCoordFor);
+  _pickCoordFor = null;
+  if (r) { r.lat = e.lngLat.lat; r.lng = e.lngLat.lng; saveLocal(); }
+  drawFoodMarkers();
+  updatePickBanner();
 }
 async function addRestaurant() {
   const name = prompt('맛집 이름 (예: 마키노 우동)'); if (!name || !name.trim()) return;
@@ -654,11 +676,13 @@ function renderFoodMap() {
     const opts = { container: 'foodMap', center: [130.8, 33.45], zoom: 8, language: KO };
     if (maptilersdk.MapStyle && maptilersdk.MapStyle.STREETS) opts.style = maptilersdk.MapStyle.STREETS;
     _foodMap = new maptilersdk.Map(opts);
-    _foodMap.on('load', () => { _foodMapReady = true; drawFoodMarkers(); });
+    _foodMap.on('load', () => { _foodMapReady = true; drawFoodMarkers(); updatePickBanner(); });
+    _foodMap.on('click', onFoodMapClick);
   } else {
     setTimeout(() => _foodMap.resize(), 50);
     if (_foodMapReady) drawFoodMarkers();
   }
+  updatePickBanner();
 }
 function drawFoodMarkers() {
   if (!_foodMap) return;
