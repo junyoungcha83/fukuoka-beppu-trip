@@ -606,7 +606,10 @@ function renderFoodList() {
   const list = state.restaurants || [];
   const cards = list.map(r => {
     const loc = [r.area, r.near].filter(Boolean).join(' · ');
+    const reg = foodRegion(r);   // 후쿠오카(리치몬드 기준) / 벳푸(그랜드 기준)
     return `<div class="food-card">
+      ${(reg === '후쿠오카' || reg === '벳푸')
+        ? `<div class="food-region ${reg === '벳푸' ? 'fr-bep' : 'fr-fuk'}">📍 ${reg}</div>` : ''}
       <div class="food-head">
         <span class="food-type">${escapeAttr(r.type || '맛집')}</span>
         <b class="food-name">${escapeAttr(r.name)}</b>
