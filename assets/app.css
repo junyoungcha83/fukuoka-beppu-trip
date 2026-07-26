@@ -596,6 +596,7 @@ body.read-only .f-icon { pointer-events: none; background: #f8fafc; }
 .food-coord-btn { border: 1px solid var(--border); background: #fff; color: var(--primary-dark); border-radius: 8px; font-size: .74rem; font-weight: 700; padding: 3px 9px; cursor: pointer; }
 .food-coord-val { font-variant-numeric: tabular-nums; }
 .food-coord-none { color: #b45309; }
+.food-dist { margin-left: auto; flex: none; font-size: .78rem; font-weight: 800; color: #b91c1c; background: #fee2e2; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
 /* 숙소(호텔) 빨간 원 마커 */
 .mt-hotel-dot { width: 18px; height: 18px; border-radius: 50%; background: #ef4444; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(239,68,68,.5), 0 1px 4px rgba(0,0,0,.5); }
 /* 좌표 찍기 안내 배너 */

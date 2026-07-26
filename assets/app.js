@@ -567,6 +567,23 @@ function foodRegion(r) {
   if (/후쿠오카|하카타|텐진|福岡|博多|天神|fukuoka|hakata/i.test(a)) return '후쿠오카';
   return '기타';
 }
+// 두 좌표 간 거리(km) — 하버사인
+function haversineKm(aLat, aLng, bLat, bLng) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+// 기준 숙소: 벳푸=그랜드머큐어(FOOD_HOTELS[1]), 그 외=리치몬드(FOOD_HOTELS[0])
+function lodgingFor(r) { return foodRegion(r) === '벳푸' ? FOOD_HOTELS[1] : FOOD_HOTELS[0]; }
+function distText(r) {
+  if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return '';
+  const h = lodgingFor(r);
+  const km = haversineKm(r.lat, r.lng, h.lat, h.lng);
+  const label = foodRegion(r) === '벳푸' ? '그랜드' : '리치몬드';
+  const d = km < 1 ? Math.round(km * 1000) + 'm' : km.toFixed(1) + 'km';
+  return `🏨 ${label} ${d}`;
+}
 // 숙소(호텔) — 지도에 빨간 원 포인트로 표시(참고용 고정)
 const FOOD_HOTELS = [
   { name: '리치몬드 호텔 후쿠오카 텐진', lat: 33.58662, lng: 130.40193 },
@@ -605,6 +622,7 @@ function renderFoodList() {
           ? `<span class="food-coord-val">📌 ${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</span>`
           : `<span class="food-coord-none">📌 위치 미지정</span>`}
         <button class="food-coord-btn" data-id="${escapeAttr(r.id)}" type="button">🗺️ 지도에서 찍기</button>
+        ${distText(r) ? `<span class="food-dist">${escapeAttr(distText(r))}</span>` : ''}
       </div>
     </div>`;
   }).join('');
