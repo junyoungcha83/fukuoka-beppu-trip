@@ -611,6 +611,7 @@ function renderFoodList() {
         <span class="food-type">${escapeAttr(r.type || '맛집')}</span>
         <b class="food-name">${escapeAttr(r.name)}</b>
         ${r.verify ? `<span class="food-verify" title="영업·정보·블로그 노출 여부 미확인">확인 필요</span>` : ''}
+        <button class="food-edit" data-id="${escapeAttr(r.id)}" type="button" title="수정">✏️ 수정</button>
         <button class="food-del" data-id="${escapeAttr(r.id)}" type="button" title="삭제">×</button>
       </div>
       ${loc ? `<div class="food-loc">📍 ${escapeAttr(loc)}</div>` : ''}
@@ -635,7 +636,21 @@ function renderFoodList() {
   const add = document.getElementById('foodAdd');
   if (add) add.onclick = addRestaurant;
   box.querySelectorAll('.food-del').forEach(b => b.onclick = () => deleteRestaurant(b.dataset.id));
+  box.querySelectorAll('.food-edit').forEach(b => b.onclick = () => editRestaurant(b.dataset.id));
   box.querySelectorAll('.food-coord-btn').forEach(b => b.onclick = () => startPickCoord(b.dataset.id));
+}
+function editRestaurant(id) {
+  const r = (state.restaurants || []).find(x => x.id === id);
+  if (!r) return;
+  const name = prompt('맛집 이름', r.name); if (name === null) return;
+  const type = prompt('종류 (예: 우동집 / 스시집 / 튀김집 / 소바집)', r.type); if (type === null) return;
+  const food = prompt('주요 음식', r.food); if (food === null) return;
+  const review = prompt('리뷰 / 메모 (요약)', r.review); if (review === null) return;
+  const area = prompt('지역·접근 (예: 후쿠오카 하카타 · 지하철 접근)', r.area); if (area === null) return;
+  if (name.trim()) r.name = name.trim();
+  r.type = type.trim(); r.food = food.trim(); r.review = review.trim(); r.area = area.trim();
+  saveLocal();
+  renderFood();
 }
 // 지도 탭으로 좌표 찍기: 리스트에서 대상 선택 → 지도로 이동 → 지도를 탭하면 그 위치로 지정
 function startPickCoord(id) {

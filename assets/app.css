@@ -623,7 +623,8 @@ body.read-only .f-icon { pointer-events: none; background: #f8fafc; }
 .food-type { flex: none; font-size: .72rem; font-weight: 800; color: var(--primary-dark); background: #e0f2fe; border-radius: 999px; padding: 3px 9px; }
 .food-name { font-size: 1.02rem; font-weight: 800; }
 .food-verify { flex: none; font-size: .66rem; font-weight: 800; color: #92400e; background: #fef3c7; border-radius: 999px; padding: 2px 8px; }
-.food-del { margin-left: auto; border: 0; background: #fee2e2; color: var(--danger); border-radius: 8px; font-size: 1rem; line-height: 1; padding: 2px 9px; cursor: pointer; }
+.food-edit { margin-left: auto; flex: none; border: 1px solid var(--border); background: #fff; color: var(--primary-dark); border-radius: 8px; font-size: .74rem; font-weight: 700; line-height: 1; padding: 5px 9px; cursor: pointer; }
+.food-del { flex: none; border: 0; background: #fee2e2; color: var(--danger); border-radius: 8px; font-size: 1rem; line-height: 1; padding: 2px 9px; cursor: pointer; }
 .food-loc { font-size: .82rem; color: var(--muted); margin-top: 6px; }
 .food-line { font-size: .9rem; color: var(--text); margin-top: 6px; line-height: 1.5; }
 .food-review { color: #374151; }
