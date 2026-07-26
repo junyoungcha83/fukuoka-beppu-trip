@@ -199,9 +199,32 @@ async function loadInitial() {
   return DEFAULT_STATE();
 }
 
+// 맛집 예시(확인 필요). 리뷰는 요약 서술 · "한국 블로그 미노출" 여부는 검증 불가.
+// 제외: 스시 사카바 원 후쿠오카 · 다이치 우동(大地のうどん).
+const SEED_RESTAURANTS = [
+  { type:'우동집', name:'마키노 우동 (牧のうどん)', area:'후쿠오카·하카타', near:'하카타역 인근 · 지하철 접근 · 실내',
+    food:'후쿠오카식 부드러운 우동 · 고보텐(우엉튀김)', review:'국물을 머금어 면이 계속 불어나는 후쿠오카 로컬 체인 우동. 양이 넉넉하고 아이도 먹기 순한 맛.', verify:true, lat:33.590, lng:130.420 },
+  { type:'튀김집', name:'히라오 텐푸라 (天ぷらのひらお)', area:'후쿠오카', near:'지하철 접근 · 실내',
+    food:'즉석 튀김 정식 · 무료 시오카라', review:'주문 즉시 튀겨 주는 정식형 텐푸라. 가격 대비 만족도 높은 현지 인기 체인.', verify:true, lat:33.5896, lng:130.418 },
+  { type:'전골집(모츠나베)', name:'모츠나베 전문점 (もつ鍋)', area:'후쿠오카·하카타', near:'하카타/텐진 지하철 접근 · 실내',
+    food:'후쿠오카 명물 모츠나베(곱창전골)', review:'후쿠오카 대표 향토음식. 실내라 더위를 피하기 좋고 가족 단위에 무난.', verify:true, lat:33.590, lng:130.401 },
+  { type:'텐동집', name:'토요츠네 (とよ常)', area:'벳푸', near:'벳푸역 인근 · 실내',
+    food:'특상 텐동(새우튀김 덮밥)', review:'벳푸에서 오래된 텐동집. 바삭한 튀김과 진한 소스가 특징.', verify:true, lat:33.279, lng:131.499 },
+];
+function normRestaurant(r) {
+  r.id = r.id || ('r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+  for (const k of ['type','name','area','near','food','review','url']) r[k] = typeof r[k] === 'string' ? r[k] : '';
+  r.lat = (typeof r.lat === 'number') ? r.lat : parseNum(r.lat);
+  r.lng = (typeof r.lng === 'number') ? r.lng : parseNum(r.lng);
+  r.verify = !!r.verify;
+  r.created_at = r.created_at || nowIso();
+  return r;
+}
 function migrate(loaded) {
   if (!loaded || !Array.isArray(loaded.entries)) return DEFAULT_STATE();
   loaded.version = loaded.version || 1;
+  if (!Array.isArray(loaded.restaurants)) loaded.restaurants = SEED_RESTAURANTS.map(r => ({ ...r }));
+  loaded.restaurants.forEach(normRestaurant);
   for (const e of loaded.entries) {
     e.day   = DAYS.some(d => d.id === e.day) ? e.day : 'd1';
     e.kind  = KINDS.some(k => k.id === e.kind) ? e.kind : 'sight';
@@ -299,7 +322,7 @@ function updateEditUI() {
 }
 
 // ── 탭 / 미니탭(일자) ─────────────────────────────
-const TABS = ['grid', 'map', 'route', 'detail', 'lang'];
+const TABS = ['grid', 'map', 'route', 'detail', 'food', 'lang'];
 function setActiveTab(t) {
   if (!TABS.includes(t)) return;
   activeTab = t;
@@ -348,6 +371,7 @@ function render() {
   if      (activeTab === 'grid')   renderGrid();
   else if (activeTab === 'map')    renderMap();
   else if (activeTab === 'route')  renderRoute();
+  else if (activeTab === 'food')   renderFood();
   else if (activeTab === 'lang')   renderLang();
   else                             renderDetail();
 }
@@ -528,6 +552,112 @@ function renderLang(){
     b.classList.toggle('active', b.dataset.sub === _langSub);
     b.onclick = () => { _langSub = b.dataset.sub; renderLang(); };
   });
+}
+
+// ── 맛집 탭: 리스트 / 지도 ───────────────────────────
+let _foodSub = 'list';
+let _foodMap = null, _foodMarkers = [], _foodMapReady = false;
+function renderFood() {
+  const listEl = document.getElementById('foodList');
+  const mapWrap = document.getElementById('foodMapWrap');
+  if (!listEl || !mapWrap) return;
+  listEl.classList.toggle('hidden', _foodSub !== 'list');
+  mapWrap.classList.toggle('hidden', _foodSub !== 'map');
+  document.querySelectorAll('#foodSubtabs .lang-subtab').forEach(b => {
+    b.classList.toggle('active', b.dataset.fsub === _foodSub);
+    b.onclick = () => { _foodSub = b.dataset.fsub; renderFood(); };
+  });
+  if (_foodSub === 'list') renderFoodList(); else renderFoodMap();
+}
+function renderFoodList() {
+  const box = document.getElementById('foodList');
+  const list = state.restaurants || [];
+  const cards = list.map(r => {
+    const loc = [r.area, r.near].filter(Boolean).join(' · ');
+    return `<div class="food-card">
+      <div class="food-head">
+        <span class="food-type">${escapeAttr(r.type || '맛집')}</span>
+        <b class="food-name">${escapeAttr(r.name)}</b>
+        ${r.verify ? `<span class="food-verify" title="영업·정보·블로그 노출 여부 미확인">확인 필요</span>` : ''}
+        <button class="food-del" data-id="${escapeAttr(r.id)}" type="button" title="삭제">×</button>
+      </div>
+      ${loc ? `<div class="food-loc">📍 ${escapeAttr(loc)}</div>` : ''}
+      ${r.food ? `<div class="food-line">🍽 <b>주요 음식</b> · ${escapeAttr(r.food)}</div>` : ''}
+      ${r.review ? `<div class="food-line food-review">📝 ${escapeAttr(r.review)}</div>` : ''}
+      ${r.url ? `<div class="food-line"><a href="${escapeAttr(r.url)}" target="_blank" rel="noopener">🔗 링크</a></div>` : ''}
+    </div>`;
+  }).join('');
+  box.innerHTML =
+    `<div class="food-top">
+       <button class="food-add" id="foodAdd" type="button">＋ 맛집 추가</button>
+       <span class="food-note">예시는 참고용(확인 필요) · 조건: 4인가족·실내/지하철·한국블로그 미노출 지향</span>
+     </div>` +
+    (list.length ? cards : `<div class="grid-empty">아직 맛집이 없습니다.<br/><small>＋ 맛집 추가 로 넣어 보세요.</small></div>`);
+  const add = document.getElementById('foodAdd');
+  if (add) add.onclick = addRestaurant;
+  box.querySelectorAll('.food-del').forEach(b => b.onclick = () => deleteRestaurant(b.dataset.id));
+}
+async function addRestaurant() {
+  const name = prompt('맛집 이름 (예: 마키노 우동)'); if (!name || !name.trim()) return;
+  const type = (prompt('종류 (예: 우동집 / 스시집 / 튀김집 / 소바집)', '') || '').trim();
+  const food = (prompt('주요 음식 (예: 고보텐 우동)', '') || '').trim();
+  const review = (prompt('리뷰 / 메모 (요약)', '') || '').trim();
+  const area = (prompt('지역·접근 (예: 후쿠오카 하카타 · 지하철 접근)', '') || '').trim();
+  const r = normRestaurant({ type, name: name.trim(), food, review, area, near: '', verify: false });
+  try { const g = await geocodeFirst(name.trim() + ' ' + (area || '후쿠오카')); if (g) { r.lat = g.lat; r.lng = g.lng; } } catch (e) {}
+  state.restaurants = state.restaurants || [];
+  state.restaurants.push(r);
+  saveLocal();
+  renderFood();
+}
+function deleteRestaurant(id) {
+  if (!confirm('이 맛집을 삭제할까요?')) return;
+  state.restaurants = (state.restaurants || []).filter(r => r.id !== id);
+  saveLocal();
+  renderFood();
+}
+function renderFoodMap() {
+  const box = document.getElementById('foodMap');
+  if (!box) return;
+  if (typeof maptilersdk === 'undefined' || !MAPTILER_KEY || MAPTILER_KEY === 'REPLACE_WITH_MAPTILER_KEY') {
+    box.innerHTML = '<div class="grid-empty">지도를 불러올 수 없습니다 (네트워크·키 확인).</div>';
+    return;
+  }
+  if (!_foodMap) {
+    maptilersdk.config.apiKey = MAPTILER_KEY;
+    const KO = (maptilersdk.Language && maptilersdk.Language.KOREAN) || 'ko';
+    const opts = { container: 'foodMap', center: [130.8, 33.45], zoom: 8, language: KO };
+    if (maptilersdk.MapStyle && maptilersdk.MapStyle.STREETS) opts.style = maptilersdk.MapStyle.STREETS;
+    _foodMap = new maptilersdk.Map(opts);
+    _foodMap.on('load', () => { _foodMapReady = true; drawFoodMarkers(); });
+  } else {
+    setTimeout(() => _foodMap.resize(), 50);
+    if (_foodMapReady) drawFoodMarkers();
+  }
+}
+function drawFoodMarkers() {
+  if (!_foodMap) return;
+  _foodMarkers.forEach(m => m.remove());
+  _foodMarkers = [];
+  const pts = (state.restaurants || []).filter(r => typeof r.lat === 'number' && typeof r.lng === 'number');
+  let bounds = null;
+  for (const r of pts) {
+    const el = document.createElement('div');
+    el.className = 'mt-marker';
+    el.innerHTML = `<div class="mt-pin food-pin"><span>🍜</span></div>` +
+      `<div class="mt-label"><span>${escapeAttr(r.name)}</span></div>`;
+    const popup = new maptilersdk.Popup({ offset: 28, closeButton: false }).setHTML(
+      `<b>${escapeAttr((r.type ? '[' + r.type + '] ' : '') + r.name)}</b>` +
+      (r.food ? `<br/>🍽 ${escapeAttr(r.food)}` : '') +
+      (r.review ? `<br/>${escapeAttr(r.review)}` : '')
+    );
+    const mk = new maptilersdk.Marker({ element: el, anchor: 'bottom' }).setLngLat([r.lng, r.lat]).setPopup(popup).addTo(_foodMap);
+    _foodMarkers.push(mk);
+    if (!bounds) bounds = new maptilersdk.LngLatBounds([r.lng, r.lat], [r.lng, r.lat]);
+    else bounds.extend([r.lng, r.lat]);
+  }
+  if (pts.length === 1) _foodMap.flyTo({ center: [pts[0].lng, pts[0].lat], zoom: 13 });
+  else if (bounds) _foodMap.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 0 });
 }
 
 // ── 상세(입력) 탭 ───────────────────────────────
