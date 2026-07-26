@@ -557,6 +557,11 @@ function renderLang(){
 // ── 맛집 탭: 리스트 / 지도 ───────────────────────────
 let _foodSub = 'list';
 let _foodMap = null, _foodMarkers = [], _foodMapReady = false;
+// 숙소(호텔) — 지도에 빨간 원 포인트로 표시(참고용 고정)
+const FOOD_HOTELS = [
+  { name: '리치몬드 호텔 후쿠오카 텐진', lat: 33.58662, lng: 130.40193 },
+  { name: 'Grand Mercure Beppu Bay Resort & Spa', lat: 33.35606, lng: 131.49830 },
+];
 function renderFood() {
   const listEl = document.getElementById('foodList');
   const mapWrap = document.getElementById('foodMapWrap');
@@ -585,6 +590,12 @@ function renderFoodList() {
       ${r.food ? `<div class="food-line">🍽 <b>주요 음식</b> · ${escapeAttr(r.food)}</div>` : ''}
       ${r.review ? `<div class="food-line food-review">📝 ${escapeAttr(r.review)}</div>` : ''}
       ${r.url ? `<div class="food-line"><a href="${escapeAttr(r.url)}" target="_blank" rel="noopener">🔗 링크</a></div>` : ''}
+      <div class="food-coords">
+        ${(typeof r.lat === 'number' && typeof r.lng === 'number')
+          ? `<span class="food-coord-val">📌 ${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</span>`
+          : `<span class="food-coord-none">📌 위치 미지정</span>`}
+        <button class="food-coord-btn" data-id="${escapeAttr(r.id)}" type="button">좌표 찍기</button>
+      </div>
     </div>`;
   }).join('');
   box.innerHTML =
@@ -596,6 +607,20 @@ function renderFoodList() {
   const add = document.getElementById('foodAdd');
   if (add) add.onclick = addRestaurant;
   box.querySelectorAll('.food-del').forEach(b => b.onclick = () => deleteRestaurant(b.dataset.id));
+  box.querySelectorAll('.food-coord-btn').forEach(b => b.onclick = () => setRestaurantCoords(b.dataset.id));
+}
+function setRestaurantCoords(id) {
+  const r = (state.restaurants || []).find(x => x.id === id);
+  if (!r) return;
+  const cur = (typeof r.lat === 'number' && typeof r.lng === 'number') ? `${r.lat}, ${r.lng}` : '';
+  const v = prompt('위도, 경도를 입력하세요 (예: 33.58662, 130.40193)\n· 지도앱에서 좌표를 복사해 붙여넣으면 돼요.\n· 비우고 확인하면 위치가 삭제됩니다.', cur);
+  if (v === null) return;
+  const s = v.trim();
+  if (!s) { r.lat = null; r.lng = null; saveLocal(); renderFood(); return; }
+  const nums = s.split(/[,\s]+/).map(x => parseFloat(x)).filter(n => !isNaN(n));
+  if (nums.length < 2) { alert('형식이 올바르지 않아요. 예: 33.58662, 130.40193'); return; }
+  r.lat = nums[0]; r.lng = nums[1];
+  saveLocal(); renderFood();
 }
 async function addRestaurant() {
   const name = prompt('맛집 이름 (예: 마키노 우동)'); if (!name || !name.trim()) return;
@@ -656,8 +681,18 @@ function drawFoodMarkers() {
     if (!bounds) bounds = new maptilersdk.LngLatBounds([r.lng, r.lat], [r.lng, r.lat]);
     else bounds.extend([r.lng, r.lat]);
   }
-  if (pts.length === 1) _foodMap.flyTo({ center: [pts[0].lng, pts[0].lat], zoom: 13 });
-  else if (bounds) _foodMap.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 0 });
+  // 숙소(호텔) 빨간 원 포인트
+  for (const h of FOOD_HOTELS) {
+    const el = document.createElement('div');
+    el.className = 'mt-hotel-dot';
+    const popup = new maptilersdk.Popup({ offset: 14, closeButton: false })
+      .setHTML(`<b>🏨 숙소</b><br/>${escapeAttr(h.name)}`);
+    const mk = new maptilersdk.Marker({ element: el, anchor: 'center' }).setLngLat([h.lng, h.lat]).setPopup(popup).addTo(_foodMap);
+    _foodMarkers.push(mk);
+    if (!bounds) bounds = new maptilersdk.LngLatBounds([h.lng, h.lat], [h.lng, h.lat]);
+    else bounds.extend([h.lng, h.lat]);
+  }
+  if (bounds) _foodMap.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 0 });
 }
 
 // ── 상세(입력) 탭 ───────────────────────────────
