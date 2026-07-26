@@ -683,6 +683,27 @@ function renderFoodMap() {
     if (_foodMapReady) drawFoodMarkers();
   }
   updatePickBanner();
+  renderFoodNames();
+}
+// 지도 서브탭 하단: 음식점 이름만 칩으로 표시(누르면 해당 위치로 이동)
+function renderFoodNames() {
+  const el = document.getElementById('foodMapNames');
+  if (!el) return;
+  const list = state.restaurants || [];
+  if (!list.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = list.map(r => {
+    const hasLoc = (typeof r.lat === 'number' && typeof r.lng === 'number');
+    return `<button class="fml-chip${hasLoc ? '' : ' fml-noloc'}" data-id="${escapeAttr(r.id)}" type="button">${escapeAttr(r.name)}</button>`;
+  }).join('');
+  el.querySelectorAll('.fml-chip').forEach(b => b.onclick = () => {
+    const r = (state.restaurants || []).find(x => x.id === b.dataset.id);
+    if (r && typeof r.lat === 'number' && typeof r.lng === 'number' && _foodMap) {
+      _foodMap.flyTo({ center: [r.lng, r.lat], zoom: 15 });
+    } else {
+      alert('아직 위치가 없어요. 리스트에서 "🗺️ 지도에서 찍기"로 지정하세요.');
+    }
+  });
 }
 function drawFoodMarkers() {
   if (!_foodMap) return;
